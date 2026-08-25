@@ -810,10 +810,13 @@ test("trusted identity stays on Home while connection state moves into branded c
       "Learning documentation link was not rendered",
     );
     expect(learningDocs.title).toBe("");
-    expect(learningDocs.dataset.fullValue).toBe("Open docs");
+    expect(learningDocs.dataset.fullValue).toBeUndefined();
     expect(
       learningDocs.classList.contains("inspector-home-feature-label"),
     ).toBe(true);
+    expect(learningDocs.classList.contains("inspector-system-health-url")).toBe(
+      false,
+    );
     expect(learningDocs.textContent).toContain("Learning");
     expect(learningDocs.querySelector("svg")).not.toBeNull();
     expect(learningDocs.href).toBe(
@@ -845,9 +848,12 @@ test("trusted identity stays on Home while connection state moves into branded c
       "A2UI documentation link was not rendered",
     );
     expect(a2uiDocs.title).toBe("");
-    expect(a2uiDocs.dataset.fullValue).toBe("Open docs");
+    expect(a2uiDocs.dataset.fullValue).toBeUndefined();
     expect(a2uiDocs.classList.contains("inspector-home-feature-label")).toBe(
       true,
+    );
+    expect(a2uiDocs.classList.contains("inspector-system-health-url")).toBe(
+      false,
     );
     expect(a2uiDocs.textContent).toContain("A2UI");
     expect(

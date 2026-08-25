@@ -11787,9 +11787,8 @@ export class WebInspectorElement extends LitElement {
           <span aria-hidden="true"></span>
         </span>
         <a
-          class="inspector-home-feature-label inspector-system-health-url"
+          class="inspector-home-feature-label"
           data-inspector-home-feature-docs=${service.id}
-          data-full-value="Open docs"
           href=${this.appendRefParam(service.docsUrl, "cpk-inspector-home")}
           target="_blank"
           rel="noopener noreferrer"

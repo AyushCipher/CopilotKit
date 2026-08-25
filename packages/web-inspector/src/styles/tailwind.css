@@ -1795,10 +1795,6 @@ small.inspector-system-health-detail {
   outline-offset: 2px;
 }
 
-.inspector-home-feature-label.inspector-system-health-url:focus-visible > span {
-  outline: none;
-}
-
 .inspector-home-feature-actions {
   display: inline-flex;
   align-items: center;
@@ -1870,6 +1866,7 @@ small.inspector-system-health-detail {
 }
 
 .inspector-home-feature-action.inspector-system-health-url::after {
+  content: none;
   right: auto;
   left: 50%;
   transform: translate(-50%, 3px);
@@ -1911,6 +1908,10 @@ small.inspector-system-health-detail {
 
   .inspector-home-feature-action-label {
     display: none !important;
+  }
+
+  .inspector-home-feature-action.inspector-system-health-url::after {
+    content: attr(data-full-value);
   }
 }
 
