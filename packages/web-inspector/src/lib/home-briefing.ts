@@ -140,7 +140,8 @@ const SERVICE_DOCS_URL: Record<HomeServiceId, string> = {
   memory: "https://docs.copilotkit.ai/premium/intelligence-platform",
   a2ui: "https://docs.copilotkit.ai/generative-ui/a2ui",
   "open-gen-ui": "https://docs.copilotkit.ai/generative-ui/open-generative-ui",
-  suggestions: "https://docs.copilotkit.ai/agentic-chat-ui",
+  suggestions:
+    "https://docs.copilotkit.ai/reference/hooks/useConfigureSuggestions",
   audio: "https://docs.copilotkit.ai/voice",
   websocket: "https://docs.copilotkit.ai/premium/intelligence-platform",
 };

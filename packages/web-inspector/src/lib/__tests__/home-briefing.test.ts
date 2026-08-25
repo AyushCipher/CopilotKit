@@ -55,7 +55,14 @@ describe("home-briefing", () => {
       "websocket",
     ]);
     const learning = model.services.find((service) => service.id === "memory");
+    const suggestions = model.services.find(
+      (service) => service.id === "suggestions",
+    );
     expect(learning).toMatchObject({ label: "Learning" });
+    expect(suggestions).toMatchObject({
+      docsUrl:
+        "https://docs.copilotkit.ai/reference/hooks/useConfigureSuggestions",
+    });
     expect(
       homeFeatureImplementationPrompt(learning!, {
         onboardingRunId: "21bcf98aa5fd4e6287c0d0b5efc46217",
