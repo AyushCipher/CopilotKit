@@ -11778,6 +11778,14 @@ export class WebInspectorElement extends LitElement {
         data-state=${service.enabled ? "on" : "off"}
         role="listitem"
       >
+        <span
+          class="inspector-home-feature-status"
+          role="img"
+          aria-label=${stateDescription}
+          title=${stateDescription}
+        >
+          <span aria-hidden="true"></span>
+        </span>
         <span class="inspector-home-feature-label">${service.label}</span>
         <span class="inspector-home-feature-actions">
           ${
@@ -11826,14 +11834,6 @@ export class WebInspectorElement extends LitElement {
                   </span>
                 `
           }
-          <span
-            class="inspector-home-feature-status"
-            role="img"
-            aria-label=${stateDescription}
-            title=${stateDescription}
-          >
-            <span aria-hidden="true"></span>
-          </span>
         </span>
       </div>
     `;

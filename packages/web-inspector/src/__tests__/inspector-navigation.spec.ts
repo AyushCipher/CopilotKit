@@ -815,9 +815,9 @@ test("trusted identity stays on Home while connection state moves into branded c
       "https://docs.copilotkit.ai/premium/intelligence-platform?ref=cpk-inspector-home",
     );
     expect(
-      learning
-        .querySelector(".inspector-home-feature-actions")
-        ?.lastElementChild?.classList.contains("inspector-home-feature-status"),
+      learning.firstElementChild?.classList.contains(
+        "inspector-home-feature-status",
+      ),
     ).toBe(true);
     const a2ui = requireElement(
       features.querySelector<HTMLElement>('[data-inspector-service="a2ui"]'),
@@ -839,9 +839,9 @@ test("trusted identity stays on Home while connection state moves into branded c
     );
     expect(a2uiDocs.title).toBe("Open docs");
     expect(
-      a2ui
-        .querySelector(".inspector-home-feature-actions")
-        ?.lastElementChild?.classList.contains("inspector-home-feature-status"),
+      a2ui.firstElementChild?.classList.contains(
+        "inspector-home-feature-status",
+      ),
     ).toBe(true);
     expect(
       features.querySelector<HTMLElement>('[data-inspector-service="threads"]')
