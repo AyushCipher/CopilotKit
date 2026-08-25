@@ -1814,6 +1814,11 @@ small.inspector-system-health-detail {
   height: 14px;
 }
 
+.inspector-home-feature-action.inspector-system-health-url::after {
+  right: 0;
+  left: auto;
+}
+
 .inspector-home-feature-action:hover {
   border-color: #bba5df;
   background-color: #f7f4fe;

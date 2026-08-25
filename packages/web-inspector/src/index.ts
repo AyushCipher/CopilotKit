@@ -11799,7 +11799,6 @@ export class WebInspectorElement extends LitElement {
                     data-copy-state=${copyState}
                     data-full-value=${copyTitle}
                     aria-label="${copyLabel} for ${service.label}"
-                    title=${copyTitle}
                     @click=${(event: Event) =>
                       this.handleHomeFeaturePromptCopy(service, model, event)}
                   >
@@ -11817,7 +11816,6 @@ export class WebInspectorElement extends LitElement {
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Open ${service.label} documentation in a new tab"
-            title="Open docs"
           >
             <span aria-hidden="true">${this.renderIcon("BookOpen")}</span>
           </a>
