@@ -1668,7 +1668,7 @@ small.inspector-system-health-detail {
 }
 
 .inspector-home-feature-group {
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid #d5d3e4;
   border-radius: 5px;
   background-color: #ffffff;
@@ -1680,6 +1680,7 @@ small.inspector-system-health-detail {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  border-radius: 4px 4px 0 0;
   border-bottom: 1px solid #e4e4ec;
   background-color: #f7f7f9;
   padding: 9px 12px;
@@ -1735,6 +1736,10 @@ small.inspector-system-health-detail {
 
 .inspector-home-feature + .inspector-home-feature {
   border-top: 1px solid #ececf1;
+}
+
+.inspector-home-feature:last-child {
+  border-radius: 0 0 4px 4px;
 }
 
 .inspector-home-feature-group-empty {
@@ -1815,8 +1820,14 @@ small.inspector-system-health-detail {
 }
 
 .inspector-home-feature-action.inspector-system-health-url::after {
-  right: 0;
-  left: auto;
+  right: auto;
+  left: 50%;
+  transform: translate(-50%, 3px);
+}
+
+.inspector-home-feature-action.inspector-system-health-url:hover::after,
+.inspector-home-feature-action.inspector-system-health-url:focus-visible::after {
+  transform: translate(-50%, 0);
 }
 
 .inspector-home-feature-action:hover {
