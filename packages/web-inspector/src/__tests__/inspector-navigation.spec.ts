@@ -807,10 +807,14 @@ test("trusted identity stays on Home while connection state moves into branded c
       learning.querySelector<HTMLAnchorElement>(
         '[data-inspector-home-feature-docs="memory"]',
       ),
-      "Learning documentation action was not rendered",
+      "Learning documentation link was not rendered",
     );
     expect(learningDocs.title).toBe("");
     expect(learningDocs.dataset.fullValue).toBe("Open docs");
+    expect(
+      learningDocs.classList.contains("inspector-home-feature-label"),
+    ).toBe(true);
+    expect(learningDocs.textContent).toContain("Learning");
     expect(learningDocs.querySelector("svg")).not.toBeNull();
     expect(learningDocs.href).toBe(
       "https://docs.copilotkit.ai/premium/intelligence-platform?ref=cpk-inspector-home",
@@ -832,15 +836,20 @@ test("trusted identity stays on Home while connection state moves into branded c
     );
     expect(a2uiPrompt.title).toBe("");
     expect(a2uiPrompt.dataset.fullValue).toBe("Copy prompt");
+    expect(a2uiPrompt.textContent).toContain("Copy prompt");
     expect(a2uiPrompt.querySelector("svg")).not.toBeNull();
     const a2uiDocs = requireElement(
       a2ui.querySelector<HTMLAnchorElement>(
         '[data-inspector-home-feature-docs="a2ui"]',
       ),
-      "A2UI documentation action was not rendered",
+      "A2UI documentation link was not rendered",
     );
     expect(a2uiDocs.title).toBe("");
     expect(a2uiDocs.dataset.fullValue).toBe("Open docs");
+    expect(a2uiDocs.classList.contains("inspector-home-feature-label")).toBe(
+      true,
+    );
+    expect(a2uiDocs.textContent).toContain("A2UI");
     expect(
       a2ui.firstElementChild?.classList.contains(
         "inspector-home-feature-status",
@@ -1015,6 +1024,7 @@ test("Home feature actions copy implementation prompts", async () => {
     expect(copyPrompt.title).toBe("");
     expect(copyPrompt.dataset.fullValue).toBe("Copied");
     expect(copyPrompt.getAttribute("aria-label")).toBe("Copied for A2UI");
+    expect(copyPrompt.textContent).toContain("Copied");
     expect(copyPrompt.querySelector("svg")).not.toBeNull();
   } finally {
     context.teardown();

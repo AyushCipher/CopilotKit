@@ -11786,7 +11786,20 @@ export class WebInspectorElement extends LitElement {
         >
           <span aria-hidden="true"></span>
         </span>
-        <span class="inspector-home-feature-label">${service.label}</span>
+        <a
+          class="inspector-home-feature-label inspector-system-health-url"
+          data-inspector-home-feature-docs=${service.id}
+          data-full-value="Open docs"
+          href=${this.appendRefParam(service.docsUrl, "cpk-inspector-home")}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open ${service.label} documentation in a new tab"
+        >
+          <span>${service.label}</span>
+          <span class="inspector-home-feature-label-icon" aria-hidden="true"
+            >${this.renderIcon("ArrowUpRight")}</span
+          >
+        </a>
         <span class="inspector-home-feature-actions">
           ${
             service.enabled
@@ -11802,23 +11815,15 @@ export class WebInspectorElement extends LitElement {
                     @click=${(event: Event) =>
                       this.handleHomeFeaturePromptCopy(service, model, event)}
                   >
-                    <span aria-hidden="true"
+                    <span class="inspector-home-feature-action-icon" aria-hidden="true"
                       >${this.renderIcon(copyState === "copied" ? "Check" : "Bot")}</span
+                    >
+                    <span class="inspector-home-feature-action-label"
+                      >${copyTitle}</span
                     >
                   </button>
                 `
           }
-          <a
-            class="inspector-home-feature-action inspector-system-health-url"
-            data-inspector-home-feature-docs=${service.id}
-            data-full-value="Open docs"
-            href=${this.appendRefParam(service.docsUrl, "cpk-inspector-home")}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open ${service.label} documentation in a new tab"
-          >
-            <span aria-hidden="true">${this.renderIcon("BookOpen")}</span>
-          </a>
           ${
             service.enabled
               ? nothing

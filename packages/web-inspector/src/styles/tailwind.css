@@ -1723,6 +1723,7 @@ small.inspector-system-health-detail {
 .inspector-home-feature {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
+  container-type: inline-size;
   min-width: 0;
   min-height: 52px;
   align-items: center;
@@ -1754,10 +1755,48 @@ small.inspector-system-health-detail {
 }
 
 .inspector-home-feature-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.inspector-home-feature-label > span:first-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.inspector-home-feature-label-icon {
+  display: inline-flex !important;
+  flex: none;
+  overflow: visible !important;
+}
+
+.inspector-home-feature-label-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.inspector-home-feature-label:hover {
+  color: #3f176f;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.inspector-home-feature-label:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid #6430ab;
+  outline-offset: 2px;
+}
+
+.inspector-home-feature-label.inspector-system-health-url:focus-visible > span {
+  outline: none;
 }
 
 .inspector-home-feature-actions {
@@ -1795,15 +1834,16 @@ small.inspector-system-health-detail {
 
 .inspector-home-feature-action {
   display: inline-flex;
-  width: 28px;
+  min-width: 28px;
   height: 28px;
   min-height: 28px;
   align-items: center;
   justify-content: center;
+  gap: 5px;
   border: 1px solid #d5d3e4;
   border-radius: 4px;
   background-color: #ffffff;
-  padding: 0;
+  padding: 0 8px;
   color: #4f4f55;
   font: inherit;
   font-size: 10px;
@@ -1817,6 +1857,16 @@ small.inspector-system-health-detail {
 .inspector-home-feature-action svg {
   width: 14px;
   height: 14px;
+}
+
+.inspector-home-feature-action-icon {
+  display: inline-flex !important;
+  flex: none;
+  overflow: visible !important;
+}
+
+.inspector-home-feature-action-label {
+  line-height: 1;
 }
 
 .inspector-home-feature-action.inspector-system-health-url::after {
@@ -1851,6 +1901,17 @@ small.inspector-system-health-detail {
   border-color: #e7a7ac;
   background-color: #fff0f1;
   color: #b32d3b;
+}
+
+@container (max-width: 286px) {
+  .inspector-home-feature-action {
+    width: 28px;
+    padding: 0;
+  }
+
+  .inspector-home-feature-action-label {
+    display: none !important;
+  }
 }
 
 .inspector-home-features-empty {
@@ -3438,6 +3499,11 @@ small.inspector-system-health-detail {
   border-color: #464957;
   background-color: #20232d;
   color: #d4d7e0;
+}
+
+.inspector-window[data-color-scheme="dark"]
+  .inspector-home-feature-label:hover {
+  color: #d8d9ff;
 }
 
 .inspector-window[data-color-scheme="dark"]
