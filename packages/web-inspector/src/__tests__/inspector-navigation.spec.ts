@@ -801,20 +801,48 @@ test("trusted identity stays on Home while connection state moves into branded c
         ?.getAttribute("aria-label"),
     ).toBe("Learning is enabled in your runtime");
     expect(
-      learning.querySelector<HTMLButtonElement>(
-        '[data-inspector-home-feature-prompt="memory"]',
-      )?.textContent,
-    ).toContain("Copy prompt");
+      learning.querySelector('[data-inspector-home-feature-prompt="memory"]'),
+    ).toBeNull();
     const learningDocs = requireElement(
       learning.querySelector<HTMLAnchorElement>(
         '[data-inspector-home-feature-docs="memory"]',
       ),
       "Learning documentation action was not rendered",
     );
-    expect(learningDocs.textContent).toContain("Open docs");
+    expect(learningDocs.title).toBe("Open docs");
+    expect(learningDocs.querySelector("svg")).not.toBeNull();
     expect(learningDocs.href).toBe(
       "https://docs.copilotkit.ai/premium/intelligence-platform?ref=cpk-inspector-home",
     );
+    expect(
+      learning
+        .querySelector(".inspector-home-feature-actions")
+        ?.lastElementChild?.classList.contains("inspector-home-feature-status"),
+    ).toBe(true);
+    const a2ui = requireElement(
+      features.querySelector<HTMLElement>('[data-inspector-service="a2ui"]'),
+      "A2UI feature was not rendered",
+    );
+    const a2uiPrompt = requireElement(
+      a2ui.querySelector<HTMLButtonElement>(
+        '[data-inspector-home-feature-prompt="a2ui"]',
+      ),
+      "A2UI copy action was not rendered",
+    );
+    expect(a2uiPrompt.title).toBe("Copy prompt");
+    expect(a2uiPrompt.querySelector("svg")).not.toBeNull();
+    const a2uiDocs = requireElement(
+      a2ui.querySelector<HTMLAnchorElement>(
+        '[data-inspector-home-feature-docs="a2ui"]',
+      ),
+      "A2UI documentation action was not rendered",
+    );
+    expect(a2uiDocs.title).toBe("Open docs");
+    expect(
+      a2ui
+        .querySelector(".inspector-home-feature-actions")
+        ?.lastElementChild?.classList.contains("inspector-home-feature-status"),
+    ).toBe(true);
     expect(
       features.querySelector<HTMLElement>('[data-inspector-service="threads"]')
         ?.dataset.state,
@@ -958,9 +986,9 @@ test("Home feature actions copy implementation prompts", async () => {
     );
     const copyPrompt = requireElement(
       root.querySelector<HTMLButtonElement>(
-        '[data-inspector-home-feature-prompt="memory"]',
+        '[data-inspector-home-feature-prompt="a2ui"]',
       ),
-      "Learning copy action was not rendered",
+      "A2UI copy action was not rendered",
     );
 
     copyPrompt.click();
@@ -968,10 +996,22 @@ test("Home feature actions copy implementation prompts", async () => {
     await context.inspector.updateComplete;
 
     expect(writeText).toHaveBeenCalledWith(
-      "Open this doc page, read it, and add it.\nhttps://docs.copilotkit.ai/premium/intelligence-platform",
+      expect.stringContaining("Add CopilotKit A2UI"),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "Connected CopilotKit project: Acme Inc. / Support",
+      ),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "Runtime observed by Inspector: http://localhost:4000/api/copilotkit",
+      ),
     );
     expect(copyPrompt.dataset.copyState).toBe("copied");
-    expect(copyPrompt.textContent).toContain("Copied");
+    expect(copyPrompt.title).toBe("Copied");
+    expect(copyPrompt.getAttribute("aria-label")).toBe("Copied for A2UI");
+    expect(copyPrompt.querySelector("svg")).not.toBeNull();
   } finally {
     context.teardown();
     if (originalClipboard) {

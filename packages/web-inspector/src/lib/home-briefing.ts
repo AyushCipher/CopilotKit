@@ -39,15 +39,47 @@ export type HomeServiceTile = {
   docsUrl: string;
 };
 
+export type HomeFeatureImplementationPromptContext = {
+  organizationName?: string;
+  projectName?: string;
+  runtimeUrl?: string;
+};
+
 /**
- * Compact, self-contained instruction for a coding agent. The canonical docs
- * URL is included so the copied text still works in a separate development
- * session.
+ * A self-contained handoff for a coding agent. It pairs the selected feature
+ * with the project's observed Inspector context, so an agent can extend the
+ * existing application instead of starting from a generic example.
  */
 export function homeFeatureImplementationPrompt(
-  service: Pick<HomeServiceTile, "docsUrl">,
+  service: Pick<HomeServiceTile, "label" | "docsUrl">,
+  context: HomeFeatureImplementationPromptContext = {},
 ): string {
-  return `Open this doc page, read it, and add it.\n${service.docsUrl}`;
+  const projectContext =
+    context.organizationName && context.projectName
+      ? `${context.organizationName} / ${context.projectName}`
+      : context.projectName;
+  const observedContext = [
+    projectContext
+      ? `- Connected CopilotKit project: ${projectContext}`
+      : "- Project name is not available in Inspector; use the repository context.",
+    context.runtimeUrl
+      ? `- Runtime observed by Inspector: ${context.runtimeUrl}`
+      : "- Runtime URL is not available in Inspector.",
+  ].join("\n");
+
+  return `Add CopilotKit ${service.label} to the current application. Work in this repository and extend its existing setup; do not build a separate example.
+
+Context
+${observedContext}
+- Official implementation guide: ${service.docsUrl}
+
+Work in this order
+1. Read the guide, then inspect the existing CopilotKit runtime, provider, agent, and UI wiring before editing.
+2. Implement the smallest production-ready integration that matches the project's framework, package manager, and installed CopilotKit version. Reuse local patterns and do not replace unrelated setup.
+3. Wire every required client and runtime configuration. Document any required environment variables, but never invent values or hardcode secrets.
+4. Add or update focused tests, run the relevant project checks, and fix any failures caused by this change.
+
+Before editing, briefly name the files and configuration you will use. When finished, summarize the changed files, verification performed, and any manual setup the user still needs to complete.`;
 }
 
 export type HomeModel = {

@@ -56,9 +56,27 @@ describe("home-briefing", () => {
     ]);
     const learning = model.services.find((service) => service.id === "memory");
     expect(learning).toMatchObject({ label: "Learning" });
-    expect(homeFeatureImplementationPrompt(learning!)).toBe(
-      "Open this doc page, read it, and add it.\nhttps://docs.copilotkit.ai/premium/intelligence-platform",
-    );
+    expect(
+      homeFeatureImplementationPrompt(learning!, {
+        organizationName: "Acme Inc.",
+        projectName: "Support",
+        runtimeUrl: "http://localhost:4000/api/copilotkit",
+      }),
+    )
+      .toBe(`Add CopilotKit Learning to the current application. Work in this repository and extend its existing setup; do not build a separate example.
+
+Context
+- Connected CopilotKit project: Acme Inc. / Support
+- Runtime observed by Inspector: http://localhost:4000/api/copilotkit
+- Official implementation guide: https://docs.copilotkit.ai/premium/intelligence-platform
+
+Work in this order
+1. Read the guide, then inspect the existing CopilotKit runtime, provider, agent, and UI wiring before editing.
+2. Implement the smallest production-ready integration that matches the project's framework, package manager, and installed CopilotKit version. Reuse local patterns and do not replace unrelated setup.
+3. Wire every required client and runtime configuration. Document any required environment variables, but never invent values or hardcode secrets.
+4. Add or update focused tests, run the relevant project checks, and fix any failures caused by this change.
+
+Before editing, briefly name the files and configuration you will use. When finished, summarize the changed files, verification performed, and any manual setup the user still needs to complete.`);
   });
 
   it("marks a linked project as connected and keeps Threads usage on the project card", () => {

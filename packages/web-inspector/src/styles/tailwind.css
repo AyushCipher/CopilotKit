@@ -1757,7 +1757,6 @@ small.inspector-system-health-detail {
 
 .inspector-home-feature-actions {
   display: inline-flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
@@ -1765,7 +1764,7 @@ small.inspector-system-health-detail {
 
 .inspector-home-feature-status {
   display: inline-flex;
-  width: 22px;
+  width: 18px;
   height: 28px;
   flex: none;
   align-items: center;
@@ -1791,14 +1790,15 @@ small.inspector-system-health-detail {
 
 .inspector-home-feature-action {
   display: inline-flex;
+  width: 28px;
+  height: 28px;
   min-height: 28px;
   align-items: center;
   justify-content: center;
-  gap: 5px;
   border: 1px solid #d5d3e4;
   border-radius: 4px;
   background-color: #ffffff;
-  padding: 5px 7px;
+  padding: 0;
   color: #4f4f55;
   font: inherit;
   font-size: 10px;
@@ -1810,8 +1810,8 @@ small.inspector-system-health-detail {
 }
 
 .inspector-home-feature-action svg {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 .inspector-home-feature-action:hover {
@@ -2014,7 +2014,7 @@ small.inspector-system-health-detail {
   }
 
   .inspector-home-feature-actions {
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
   .inspector-system-health-section .inspector-system-health-header {

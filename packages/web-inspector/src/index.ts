@@ -11770,6 +11770,7 @@ export class WebInspectorElement extends LitElement {
           : copyState === "error"
             ? "Copy failed"
             : "Copy prompt";
+      const copyTitle = copyLabel;
       return html`
       <div
         class="inspector-home-feature"
@@ -11779,26 +11780,26 @@ export class WebInspectorElement extends LitElement {
       >
         <span class="inspector-home-feature-label">${service.label}</span>
         <span class="inspector-home-feature-actions">
-          <span
-            class="inspector-home-feature-status"
-            role="img"
-            aria-label=${stateDescription}
-            title=${stateDescription}
-          >
-            <span aria-hidden="true"></span>
-          </span>
-          <button
-            type="button"
-            class="inspector-home-feature-action"
-            data-inspector-home-feature-prompt=${service.id}
-            data-copy-state=${copyState}
-            aria-label="${copyLabel} for ${service.label}"
-            @click=${(event: Event) =>
-              this.handleHomeFeaturePromptCopy(service, event)}
-          >
-            ${this.renderIcon(copyState === "copied" ? "Check" : "Copy")}
-            <span>${copyLabel}</span>
-          </button>
+          ${
+            service.enabled
+              ? nothing
+              : html`
+                  <button
+                    type="button"
+                    class="inspector-home-feature-action"
+                    data-inspector-home-feature-prompt=${service.id}
+                    data-copy-state=${copyState}
+                    aria-label="${copyLabel} for ${service.label}"
+                    title=${copyTitle}
+                    @click=${(event: Event) =>
+                      this.handleHomeFeaturePromptCopy(service, model, event)}
+                  >
+                    <span aria-hidden="true"
+                      >${this.renderIcon(copyState === "copied" ? "Check" : "Bot")}</span
+                    >
+                  </button>
+                `
+          }
           <a
             class="inspector-home-feature-action"
             data-inspector-home-feature-docs=${service.id}
@@ -11806,18 +11807,32 @@ export class WebInspectorElement extends LitElement {
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Open ${service.label} documentation in a new tab"
+            title="Open docs"
           >
-            <span>Open docs</span>
-            ${this.renderIcon("ArrowUpRight")}
+            <span aria-hidden="true">${this.renderIcon("BookOpen")}</span>
           </a>
-          <span class="sr-only" aria-live="polite">
-            ${
-              copyState === "copied"
-                ? `${service.label} implementation prompt copied.`
-                : copyState === "error"
-                  ? `Could not copy the ${service.label} implementation prompt.`
-                  : ""
-            }
+          ${
+            service.enabled
+              ? nothing
+              : html`
+                  <span class="sr-only" aria-live="polite">
+                    ${
+                      copyState === "copied"
+                        ? `${service.label} implementation prompt copied.`
+                        : copyState === "error"
+                          ? `Could not copy the ${service.label} implementation prompt.`
+                          : ""
+                    }
+                  </span>
+                `
+          }
+          <span
+            class="inspector-home-feature-status"
+            role="img"
+            aria-label=${stateDescription}
+            title=${stateDescription}
+          >
+            <span aria-hidden="true"></span>
           </span>
         </span>
       </div>
@@ -11909,6 +11924,7 @@ export class WebInspectorElement extends LitElement {
 
   private handleHomeFeaturePromptCopy = async (
     service: HomeModel["services"][number],
+    model: HomeModel,
     event?: Event,
   ): Promise<void> => {
     const generation = (this.homeFeaturePromptCopyGeneration += 1);
@@ -11926,7 +11942,13 @@ export class WebInspectorElement extends LitElement {
     }
 
     try {
-      await clipboard.writeText(homeFeatureImplementationPrompt(service));
+      await clipboard.writeText(
+        homeFeatureImplementationPrompt(service, {
+          organizationName: model.project?.organizationName,
+          projectName: model.project?.projectName,
+          runtimeUrl: model.runtime.url,
+        }),
+      );
       this.showHomeFeaturePromptCopyState(service.id, "copied", generation);
     } catch {
       this.showHomeFeaturePromptCopyState(service.id, "error", generation);
