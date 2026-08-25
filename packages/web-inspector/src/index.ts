@@ -11794,9 +11794,10 @@ export class WebInspectorElement extends LitElement {
               : html`
                   <button
                     type="button"
-                    class="inspector-home-feature-action"
+                    class="inspector-home-feature-action inspector-system-health-url"
                     data-inspector-home-feature-prompt=${service.id}
                     data-copy-state=${copyState}
+                    data-full-value=${copyTitle}
                     aria-label="${copyLabel} for ${service.label}"
                     title=${copyTitle}
                     @click=${(event: Event) =>
@@ -11809,8 +11810,9 @@ export class WebInspectorElement extends LitElement {
                 `
           }
           <a
-            class="inspector-home-feature-action"
+            class="inspector-home-feature-action inspector-system-health-url"
             data-inspector-home-feature-docs=${service.id}
+            data-full-value="Open docs"
             href=${this.appendRefParam(service.docsUrl, "cpk-inspector-home")}
             target="_blank"
             rel="noopener noreferrer"

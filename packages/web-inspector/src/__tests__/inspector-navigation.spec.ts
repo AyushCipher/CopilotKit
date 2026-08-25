@@ -810,6 +810,7 @@ test("trusted identity stays on Home while connection state moves into branded c
       "Learning documentation action was not rendered",
     );
     expect(learningDocs.title).toBe("Open docs");
+    expect(learningDocs.dataset.fullValue).toBe("Open docs");
     expect(learningDocs.querySelector("svg")).not.toBeNull();
     expect(learningDocs.href).toBe(
       "https://docs.copilotkit.ai/premium/intelligence-platform?ref=cpk-inspector-home",
@@ -830,6 +831,7 @@ test("trusted identity stays on Home while connection state moves into branded c
       "A2UI copy action was not rendered",
     );
     expect(a2uiPrompt.title).toBe("Copy prompt");
+    expect(a2uiPrompt.dataset.fullValue).toBe("Copy prompt");
     expect(a2uiPrompt.querySelector("svg")).not.toBeNull();
     const a2uiDocs = requireElement(
       a2ui.querySelector<HTMLAnchorElement>(
@@ -838,6 +840,7 @@ test("trusted identity stays on Home while connection state moves into branded c
       "A2UI documentation action was not rendered",
     );
     expect(a2uiDocs.title).toBe("Open docs");
+    expect(a2uiDocs.dataset.fullValue).toBe("Open docs");
     expect(
       a2ui.firstElementChild?.classList.contains(
         "inspector-home-feature-status",
@@ -1010,6 +1013,7 @@ test("Home feature actions copy implementation prompts", async () => {
     );
     expect(copyPrompt.dataset.copyState).toBe("copied");
     expect(copyPrompt.title).toBe("Copied");
+    expect(copyPrompt.dataset.fullValue).toBe("Copied");
     expect(copyPrompt.getAttribute("aria-label")).toBe("Copied for A2UI");
     expect(copyPrompt.querySelector("svg")).not.toBeNull();
   } finally {
