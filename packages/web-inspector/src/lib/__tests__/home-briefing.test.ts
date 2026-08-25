@@ -61,9 +61,11 @@ describe("home-briefing", () => {
         onboardingRunId: "21bcf98aa5fd4e6287c0d0b5efc46217",
       }),
     )
-      .toBe(`Identify your coding-agent slug (for example, \`codex\` or \`claude-code\`). From the target project root, run \`npx copilotkit@latest onboard start --run 21bcf98aa5fd4e6287c0d0b5efc46217 --coding-agent <coding-agent-slug>\` and follow its instructions. If it requires a CopilotKit CLI session check, you have permission to run it; never reveal credentials or send optional diagnostic feedback reports.
+      .toBe(`Identify your coding-agent slug (for example, \`codex\` or \`claude-code\`). From the target project root, run \`npx copilotkit@latest onboard start --run 21bcf98aa5fd4e6287c0d0b5efc46217 --coding-agent <coding-agent-slug>\` and use its output as onboarding context. If it requires a CopilotKit CLI session check, you have permission to run it; never reveal credentials or send optional diagnostic feedback reports.
 
-First inspect the project and confirm that Learning is not already enabled. Then use the onboarding guidance and the Learning guide (https://docs.copilotkit.ai/premium/intelligence-platform) to plan and implement the complete integration while preserving existing behavior. Continue until local validation proves Learning works—not merely that the code compiles—including a build or test and a runtime or Inspector capability check where available.`);
+This task is specifically to enable Learning, not to re-onboard the application. First inspect the existing CopilotKit runtime, provider, agent, and UI wiring, and confirm that Learning is not already enabled. Then read the Learning guide (https://docs.copilotkit.ai/premium/intelligence-platform) and make a short plan before editing. Preserve the project's framework, package manager, installed CopilotKit version, and working behavior. Do not create, select, or alter a CopilotKit Intelligence project—or add Intelligence configuration—unless this feature's official guide explicitly requires it or the user asks.
+
+Implement the smallest complete integration: wire every feature-required client and runtime configuration, reuse local patterns, and do not invent environment values or hardcode secrets. Add or update focused tests and run the relevant project checks. Finish only after local validation proves Learning works—not merely that the code compiles—including a feature-specific runtime or Inspector capability check and a real UI smoke test when the feature supports one. Summarize the changed files, validation, and any manual setup still required.`);
   });
 
   it("marks a linked project as connected and keeps Threads usage on the project card", () => {
