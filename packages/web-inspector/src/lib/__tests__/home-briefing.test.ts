@@ -58,25 +58,12 @@ describe("home-briefing", () => {
     expect(learning).toMatchObject({ label: "Learning" });
     expect(
       homeFeatureImplementationPrompt(learning!, {
-        organizationName: "Acme Inc.",
-        projectName: "Support",
-        runtimeUrl: "http://localhost:4000/api/copilotkit",
+        onboardingRunId: "21bcf98aa5fd4e6287c0d0b5efc46217",
       }),
     )
-      .toBe(`Add CopilotKit Learning to the current application. Work in this repository and extend its existing setup; do not build a separate example.
+      .toBe(`Identify which coding-agent product you are, using a short slug such as \`codex\` or \`claude-code\`. From the root of the project where you want CopilotKit, run \`npx copilotkit@latest onboard start --run 21bcf98aa5fd4e6287c0d0b5efc46217 --coding-agent <coding-agent-slug>\`.
 
-Context
-- Connected CopilotKit project: Acme Inc. / Support
-- Runtime observed by Inspector: http://localhost:4000/api/copilotkit
-- Official implementation guide: https://docs.copilotkit.ai/premium/intelligence-platform
-
-Work in this order
-1. Read the guide, then inspect the existing CopilotKit runtime, provider, agent, and UI wiring before editing.
-2. Implement the smallest production-ready integration that matches the project's framework, package manager, and installed CopilotKit version. Reuse local patterns and do not replace unrelated setup.
-3. Wire every required client and runtime configuration. Document any required environment variables, but never invent values or hardcode secrets.
-4. Add or update focused tests, run the relevant project checks, and fix any failures caused by this change.
-
-Before editing, briefly name the files and configuration you will use. When finished, summarize the changed files, verification performed, and any manual setup the user still needs to complete.`);
+This command will give you context about how to onboard CopilotKit. Use that knowledge in conjunction with the Learning documentation (https://docs.copilotkit.ai/premium/intelligence-platform), come up with a plan, and execute that plan until Learning is enabled successfully.`);
   });
 
   it("marks a linked project as connected and keeps Threads usage on the project card", () => {

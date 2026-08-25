@@ -106,6 +106,7 @@ import {
   maybeShowDisclosure,
   trackErrorSignalViewed,
   trackHomeCtaClicked,
+  trackHomeFeaturePromptClicked,
   trackHomeViewed,
   trackInspectorOpened,
   trackMetadataActionClicked,
@@ -621,6 +622,20 @@ const CAPABILITIES_TAB_LABEL = "Capabilities";
 
 function createPlaygroundThreadId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `playground-${Date.now()}`;
+}
+
+/** Generate a UUID v4 token suitable for correlating an onboarding click. */
+function createOnboardingRunId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return uuid.replaceAll("-", "");
+
+  // Browsers with a Clipboard API also provide crypto.randomUUID(), but retain
+  // a UUID-shaped fallback for older test and embedded-browser environments.
+  return "xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = character === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
 }
 const THREADS_DOCS_URL = "https://docs.copilotkit.ai/threads";
 const THREADS_RUNTIME_SETUP_DOCS_URL =
@@ -11812,7 +11827,7 @@ export class WebInspectorElement extends LitElement {
                     data-full-value=${copyTitle}
                     aria-label="${copyLabel} for ${service.label}"
                     @click=${(event: Event) =>
-                      this.handleHomeFeaturePromptCopy(service, model, event)}
+                      this.handleHomeFeaturePromptCopy(service, event)}
                   >
                     <span class="inspector-home-feature-action-icon" aria-hidden="true"
                       >${this.renderIcon(copyState === "copied" ? "Check" : "Bot")}</span
@@ -11928,7 +11943,6 @@ export class WebInspectorElement extends LitElement {
 
   private handleHomeFeaturePromptCopy = async (
     service: HomeModel["services"][number],
-    model: HomeModel,
     event?: Event,
   ): Promise<void> => {
     const generation = (this.homeFeaturePromptCopyGeneration += 1);
@@ -11939,6 +11953,14 @@ export class WebInspectorElement extends LitElement {
     this.homeFeaturePromptCopyState = null;
     this.requestUpdate();
 
+    const onboardingRunId = createOnboardingRunId();
+    if (!this.core?.telemetryDisabled) {
+      trackHomeFeaturePromptClicked({
+        feature_id: service.id,
+        onboarding_run_id: onboardingRunId,
+      });
+    }
+
     const clipboard = this.getClipboard(event);
     if (!clipboard?.writeText) {
       this.showHomeFeaturePromptCopyState(service.id, "error", generation);
@@ -11948,9 +11970,7 @@ export class WebInspectorElement extends LitElement {
     try {
       await clipboard.writeText(
         homeFeatureImplementationPrompt(service, {
-          organizationName: model.project?.organizationName,
-          projectName: model.project?.projectName,
-          runtimeUrl: model.runtime.url,
+          onboardingRunId,
         }),
       );
       this.showHomeFeaturePromptCopyState(service.id, "copied", generation);

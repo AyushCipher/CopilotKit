@@ -12,6 +12,7 @@ import {
   getTelemetryDistinctIdForUrl,
   maybeShowDisclosure,
   track,
+  trackHomeFeaturePromptClicked,
   trackInspectorOpened,
   trackTalkToEngineerClicked,
   trackThreadsEmptyEnabledViewed,
@@ -444,6 +445,29 @@ describe("typed helpers", () => {
   });
 });
 
+it("tracks feature prompt clicks with the onboarding run ID", async () => {
+  trackHomeFeaturePromptClicked({
+    feature_id: "a2ui",
+    onboarding_run_id: "21bcf98aa5fd4e6287c0d0b5efc46217",
+  });
+  await Promise.resolve();
+
+  const [, init] = fetchMock.mock.calls[0]!;
+  const body = JSON.parse(String(init?.body)) as {
+    event: string;
+    properties: Record<string, unknown>;
+  };
+  expect(body).toMatchObject({
+    event: "oss.inspector.home_feature_prompt_clicked",
+    properties: {
+      feature_id: "a2ui",
+      onboarding_run_id: "21bcf98aa5fd4e6287c0d0b5efc46217",
+      group_key: "home",
+      leaf_key: "home",
+    },
+  });
+});
+
 // ─── Event catalogue ────────────────────────────────────────────────────────
 
 describe("event catalogue", () => {
@@ -464,10 +488,11 @@ describe("event catalogue", () => {
     ]);
   });
 
-  it("holds twenty-four event names, all under the owned oss.inspector prefix", () => {
+  it("holds twenty-five event names, all under the owned oss.inspector prefix", () => {
     const names = Object.values(TELEMETRY_EVENTS) as string[];
 
-    expect(names).toHaveLength(24);
+    expect(names).toHaveLength(25);
+    expect(names).toContain("oss.inspector.home_feature_prompt_clicked");
     expect(names.filter((name) => !name.startsWith("oss.inspector."))).toEqual(
       [],
     );

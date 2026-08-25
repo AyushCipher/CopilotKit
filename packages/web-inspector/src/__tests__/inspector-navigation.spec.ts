@@ -8,11 +8,18 @@ import type { ɵThread } from "@copilotkit/core";
 import { expect, test, vi } from "vitest";
 
 import { WebInspectorElement } from "../index.js";
+import { TELEMETRY_EVENTS, TELEMETRY_INGEST_URL } from "../lib/telemetry.js";
+
+type TelemetryBody = {
+  event: string;
+  properties: Record<string, unknown>;
+};
 
 type InspectorNavigationContext = {
   core: CopilotKitCore;
   inspector: WebInspectorElement;
   selectedMenuBeforeCore?: unknown;
+  telemetryBodies: TelemetryBody[];
   open: () => Promise<void>;
   selectGroup: (key: string) => Promise<void>;
   selectLeaf: (key: string) => Promise<void>;
@@ -35,6 +42,7 @@ type SetupOptions = {
     announcement: string;
   };
   runtimeMode?: "sse" | "intelligence";
+  telemetryDisabled?: boolean;
   threads?: ɵThread[];
 };
 
@@ -68,6 +76,22 @@ function jsonResponse(value: unknown): Response {
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseTelemetryBody(raw: string): TelemetryBody {
+  const body: unknown = JSON.parse(raw);
+  if (
+    !isRecord(body) ||
+    typeof body.event !== "string" ||
+    !isRecord(body.properties)
+  ) {
+    throw new Error("Telemetry request body had an unexpected shape");
+  }
+  return { event: body.event, properties: body.properties };
+}
+
 /** Wait for an observable public state without reaching into component fields. */
 async function waitFor(
   predicate: () => boolean,
@@ -92,9 +116,15 @@ async function setup(
     window.localStorage.setItem("cpk:inspector:state", options.persistedState);
   }
 
+  const telemetryBodies: TelemetryBody[] = [];
+
   const fetchMock = vi.fn(
-    async (input: RequestInfo | URL): Promise<Response> => {
+    async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = input instanceof Request ? input.url : String(input);
+      if (url === TELEMETRY_INGEST_URL) {
+        telemetryBodies.push(parseTelemetryBody(String(init?.body)));
+        return new Response(null, { status: 204 });
+      }
       if (url === "https://cdn.copilotkit.ai/announcements.json") {
         if (!options.announcement) {
           return new Response(null, { status: 404 });
@@ -122,7 +152,7 @@ async function setup(
           },
           inspectorMetadata: options.metadata !== undefined,
           licenseStatus: options.metadata?.license?.state ?? "unknown",
-          telemetryDisabled: true,
+          telemetryDisabled: options.telemetryDisabled ?? true,
         });
       }
       if (url.endsWith("/inspector-metadata")) {
@@ -240,6 +270,7 @@ async function setup(
     core,
     inspector,
     selectedMenuBeforeCore,
+    telemetryBodies,
     open: async () => {
       if (inspector.shadowRoot?.querySelector(".inspector-window")) {
         return;
@@ -984,7 +1015,7 @@ test("disabled Intelligence becomes a setup action in the sidebar and on Home", 
   }
 });
 
-test("Home feature actions copy implementation prompts", async () => {
+test("Home feature actions copy correlated onboarding prompts", async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   const originalClipboard = Object.getOwnPropertyDescriptor(
     navigator,
@@ -995,7 +1026,10 @@ test("Home feature actions copy implementation prompts", async () => {
     value: { writeText },
   });
 
-  const context = await setup({ metadata: trustedMetadata() });
+  const context = await setup({
+    metadata: trustedMetadata(),
+    telemetryDisabled: false,
+  });
   try {
     await context.open();
     const root = requireElement(
@@ -1010,22 +1044,46 @@ test("Home feature actions copy implementation prompts", async () => {
     );
 
     copyPrompt.click();
-    await waitFor(() => writeText.mock.calls.length === 1, "prompt copy");
+    copyPrompt.click();
+    await waitFor(() => writeText.mock.calls.length === 2, "prompt copies");
+    await waitFor(
+      () =>
+        context.telemetryBodies.filter(
+          ({ event }) => event === TELEMETRY_EVENTS.homeFeaturePromptClicked,
+        ).length === 2,
+      "feature-prompt telemetry",
+    );
     await context.inspector.updateComplete;
 
-    expect(writeText).toHaveBeenCalledWith(
-      expect.stringContaining("Add CopilotKit A2UI"),
+    const copiedPrompts = writeText.mock.calls.map(([prompt]) =>
+      String(prompt),
     );
-    expect(writeText).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "Connected CopilotKit project: Acme Inc. / Support",
-      ),
+    const onboardingRunIds = copiedPrompts.map((prompt) => {
+      expect(prompt).toContain(
+        "Identify which coding-agent product you are, using a short slug",
+      );
+      expect(prompt).toContain("A2UI documentation");
+      const match = prompt.match(
+        /--run ([a-f0-9]{32}) --coding-agent <coding-agent-slug>/,
+      );
+      expect(match?.[1]).toBeDefined();
+      return match![1]!;
+    });
+    expect(onboardingRunIds[0]).not.toBe(onboardingRunIds[1]);
+
+    const promptClicks = context.telemetryBodies.filter(
+      ({ event }) => event === TELEMETRY_EVENTS.homeFeaturePromptClicked,
     );
-    expect(writeText).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "Runtime observed by Inspector: http://localhost:4000/api/copilotkit",
-      ),
-    );
+    expect(promptClicks.map(({ properties }) => properties)).toEqual([
+      expect.objectContaining({
+        feature_id: "a2ui",
+        onboarding_run_id: onboardingRunIds[0],
+      }),
+      expect.objectContaining({
+        feature_id: "a2ui",
+        onboarding_run_id: onboardingRunIds[1],
+      }),
+    ]);
     expect(copyPrompt.dataset.copyState).toBe("copied");
     expect(copyPrompt.title).toBe("");
     expect(copyPrompt.dataset.fullValue).toBe("Copied");
