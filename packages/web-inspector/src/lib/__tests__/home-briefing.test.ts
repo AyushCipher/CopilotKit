@@ -4,6 +4,7 @@ import { projectInspectorMetadata } from "../inspector-metadata.js";
 import {
   announcementPreview,
   buildHomeModel,
+  homeFeatureImplementationPrompt,
   homeHeroActionFromMetadata,
   runtimeConnectionNeedsAttention,
 } from "../home-briefing.js";
@@ -53,6 +54,11 @@ describe("home-briefing", () => {
       "audio",
       "websocket",
     ]);
+    const learning = model.services.find((service) => service.id === "memory");
+    expect(learning).toMatchObject({ label: "Learning" });
+    expect(homeFeatureImplementationPrompt(learning!)).toBe(
+      "Open this doc page, read it, and add it.\nhttps://docs.copilotkit.ai/premium/intelligence-platform",
+    );
   });
 
   it("marks a linked project as connected and keeps Threads usage on the project card", () => {

@@ -39,6 +39,17 @@ export type HomeServiceTile = {
   docsUrl: string;
 };
 
+/**
+ * Compact, self-contained instruction for a coding agent. The canonical docs
+ * URL is included so the copied text still works in a separate development
+ * session.
+ */
+export function homeFeatureImplementationPrompt(
+  service: Pick<HomeServiceTile, "docsUrl">,
+): string {
+  return `Open this doc page, read it, and add it.\n${service.docsUrl}`;
+}
+
 export type HomeModel = {
   hero: {
     connection: HomeConnection;
@@ -444,7 +455,7 @@ export function buildHomeModel(input: HomeBriefingInput): HomeModel {
       },
       {
         id: "memory",
-        label: "Memory",
+        label: "Learning",
         enabled: intelligenceConnected && input.memoriesOn,
         docsUrl: SERVICE_DOCS_URL.memory,
       },

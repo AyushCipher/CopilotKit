@@ -768,7 +768,7 @@ test("trusted identity stays on Home while connection state moves into branded c
     );
     expect(features.textContent).toContain("Features");
     expect(features.textContent?.replace(/\s+/g, " ")).toContain(
-      "1 active, 6 off",
+      "1 enabled, 6 available",
     );
     expect(features.querySelectorAll("[data-inspector-service]")).toHaveLength(
       7,
@@ -790,6 +790,31 @@ test("trusted identity stays on Home while connection state moves into branded c
       features.querySelector<HTMLElement>('[data-inspector-service="memory"]')
         ?.dataset.state,
     ).toBe("on");
+    const learning = requireElement(
+      features.querySelector<HTMLElement>('[data-inspector-service="memory"]'),
+      "Learning feature was not rendered",
+    );
+    expect(learning.textContent).toContain("Learning");
+    expect(
+      learning
+        .querySelector(".inspector-home-feature-status")
+        ?.getAttribute("aria-label"),
+    ).toBe("Learning is enabled in your runtime");
+    expect(
+      learning.querySelector<HTMLButtonElement>(
+        '[data-inspector-home-feature-prompt="memory"]',
+      )?.textContent,
+    ).toContain("Copy prompt");
+    const learningDocs = requireElement(
+      learning.querySelector<HTMLAnchorElement>(
+        '[data-inspector-home-feature-docs="memory"]',
+      ),
+      "Learning documentation action was not rendered",
+    );
+    expect(learningDocs.textContent).toContain("Open docs");
+    expect(learningDocs.href).toBe(
+      "https://docs.copilotkit.ai/premium/intelligence-platform?ref=cpk-inspector-home",
+    );
     expect(
       features.querySelector<HTMLElement>('[data-inspector-service="threads"]')
         ?.dataset.state,
@@ -897,7 +922,7 @@ test("disabled Intelligence becomes a setup action in the sidebar and on Home", 
       "Features section was not rendered",
     );
     expect(features.textContent?.replace(/\s+/g, " ")).toContain(
-      "0 active, 7 off",
+      "0 enabled, 7 available",
     );
     expect(
       features.querySelector<HTMLElement>('[data-inspector-service="threads"]')
@@ -910,6 +935,50 @@ test("disabled Intelligence becomes a setup action in the sidebar and on Home", 
     ).toHaveLength(0);
   } finally {
     context.teardown();
+  }
+});
+
+test("Home feature actions copy implementation prompts", async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  const originalClipboard = Object.getOwnPropertyDescriptor(
+    navigator,
+    "clipboard",
+  );
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText },
+  });
+
+  const context = await setup({ metadata: trustedMetadata() });
+  try {
+    await context.open();
+    const root = requireElement(
+      context.inspector.shadowRoot,
+      "Web Inspector shadow root was not rendered",
+    );
+    const copyPrompt = requireElement(
+      root.querySelector<HTMLButtonElement>(
+        '[data-inspector-home-feature-prompt="memory"]',
+      ),
+      "Learning copy action was not rendered",
+    );
+
+    copyPrompt.click();
+    await waitFor(() => writeText.mock.calls.length === 1, "prompt copy");
+    await context.inspector.updateComplete;
+
+    expect(writeText).toHaveBeenCalledWith(
+      "Open this doc page, read it, and add it.\nhttps://docs.copilotkit.ai/premium/intelligence-platform",
+    );
+    expect(copyPrompt.dataset.copyState).toBe("copied");
+    expect(copyPrompt.textContent).toContain("Copied");
+  } finally {
+    context.teardown();
+    if (originalClipboard) {
+      Object.defineProperty(navigator, "clipboard", originalClipboard);
+    } else {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
   }
 });
 

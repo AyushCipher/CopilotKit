@@ -80,12 +80,14 @@ import type {
 } from "./lib/inspector-metadata.js";
 import {
   buildHomeModel,
+  homeFeatureImplementationPrompt,
   runtimeConnectionNeedsAttention,
 } from "./lib/home-briefing.js";
 import type {
   HomeHeroAction,
   HomeModel,
   HomeRuntimeHealthTone,
+  HomeServiceId,
 } from "./lib/home-briefing.js";
 import {
   INSPECTOR_GROUPS,
@@ -649,6 +651,7 @@ type ThreadsExampleOverviewVideoState =
   | "playing"
   | "failed";
 type ThreadsSetupPromptCopyState = "idle" | "copied" | "error";
+type HomeFeaturePromptCopyState = "idle" | "copied" | "error";
 type ThreadsExampleOverviewVideoListeners = Readonly<{
   loadeddata: EventListener;
   play: EventListener;
@@ -6384,6 +6387,12 @@ export class WebInspectorElement extends LitElement {
   private threadsSetupPromptCopyState: ThreadsSetupPromptCopyState = "idle";
   private threadsSetupPromptCopyResetTimeoutId: number | null = null;
   private threadsSetupPromptCopyGeneration = 0;
+  private homeFeaturePromptCopyState: {
+    serviceId: HomeServiceId;
+    state: HomeFeaturePromptCopyState;
+  } | null = null;
+  private homeFeaturePromptCopyResetTimeoutId: number | null = null;
+  private homeFeaturePromptCopyGeneration = 0;
 
   get core(): CopilotKitCore | null {
     return this._core;
@@ -10188,6 +10197,12 @@ export class WebInspectorElement extends LitElement {
       this.threadsSetupPromptCopyResetTimeoutId = null;
     }
     this.threadsSetupPromptCopyState = "idle";
+    this.homeFeaturePromptCopyGeneration += 1;
+    if (this.homeFeaturePromptCopyResetTimeoutId !== null) {
+      window.clearTimeout(this.homeFeaturePromptCopyResetTimeoutId);
+      this.homeFeaturePromptCopyResetTimeoutId = null;
+    }
+    this.homeFeaturePromptCopyState = null;
     this.stopSignalPulse();
     this.cancelGestureTail();
     this.cancelLauncherHudIntro();
@@ -11739,25 +11754,75 @@ export class WebInspectorElement extends LitElement {
     const disabledServices = model.services.filter(
       (service) => !service.enabled,
     );
-    const renderService = (service: HomeModel["services"][number]) => html`
-      <a
+    const renderService = (service: HomeModel["services"][number]) => {
+      const copyState =
+        this.homeFeaturePromptCopyState?.serviceId === service.id
+          ? this.homeFeaturePromptCopyState.state
+          : "idle";
+      const stateDescription = `${service.label} is ${
+        service.enabled
+          ? "enabled in your runtime"
+          : "not enabled in your runtime"
+      }`;
+      const copyLabel =
+        copyState === "copied"
+          ? "Copied"
+          : copyState === "error"
+            ? "Copy failed"
+            : "Copy prompt";
+      return html`
+      <div
         class="inspector-home-feature"
         data-inspector-service=${service.id}
         data-state=${service.enabled ? "on" : "off"}
-        href=${this.appendRefParam(service.docsUrl, "cpk-inspector-home")}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Learn more about ${service.label}, currently ${
-          service.enabled ? "on" : "off"
-        }"
+        role="listitem"
       >
-        <span>${service.label}</span>
-        <small>${service.enabled ? "On" : "Off"}</small>
-        <span class="inspector-home-feature-arrow" aria-hidden="true">
-          ${this.renderIcon("ArrowUpRight")}
+        <span class="inspector-home-feature-label">${service.label}</span>
+        <span class="inspector-home-feature-actions">
+          <span
+            class="inspector-home-feature-status"
+            role="img"
+            aria-label=${stateDescription}
+            title=${stateDescription}
+          >
+            <span aria-hidden="true"></span>
+          </span>
+          <button
+            type="button"
+            class="inspector-home-feature-action"
+            data-inspector-home-feature-prompt=${service.id}
+            data-copy-state=${copyState}
+            aria-label="${copyLabel} for ${service.label}"
+            @click=${(event: Event) =>
+              this.handleHomeFeaturePromptCopy(service, event)}
+          >
+            ${this.renderIcon(copyState === "copied" ? "Check" : "Copy")}
+            <span>${copyLabel}</span>
+          </button>
+          <a
+            class="inspector-home-feature-action"
+            data-inspector-home-feature-docs=${service.id}
+            href=${this.appendRefParam(service.docsUrl, "cpk-inspector-home")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open ${service.label} documentation in a new tab"
+          >
+            <span>Open docs</span>
+            ${this.renderIcon("ArrowUpRight")}
+          </a>
+          <span class="sr-only" aria-live="polite">
+            ${
+              copyState === "copied"
+                ? `${service.label} implementation prompt copied.`
+                : copyState === "error"
+                  ? `Could not copy the ${service.label} implementation prompt.`
+                  : ""
+            }
+          </span>
         </span>
-      </a>
+      </div>
     `;
+    };
     return html`
       <section
         class="inspector-home-section inspector-home-features"
@@ -11766,7 +11831,7 @@ export class WebInspectorElement extends LitElement {
         <header class="inspector-home-section-header">
           <h2 class="inspector-home-section-title">Features</h2>
           <span>
-            ${enabledServices.length} active, ${disabledServices.length} off
+            ${enabledServices.length} enabled, ${disabledServices.length} available
           </span>
         </header>
         ${
@@ -11781,13 +11846,13 @@ export class WebInspectorElement extends LitElement {
                 <section
                   class="inspector-home-feature-group"
                   data-feature-state-group="active"
-                  aria-label="Active features"
+                  aria-label="Enabled features"
                 >
                   <header class="inspector-home-feature-group-header">
-                    <strong>Active</strong>
+                    <strong>Enabled</strong>
                     <span>${enabledServices.length}</span>
                   </header>
-                  <div class="inspector-home-feature-list">
+                  <div class="inspector-home-feature-list" role="list">
                     ${
                       enabledServices.length > 0
                         ? enabledServices.map(renderService)
@@ -11800,13 +11865,13 @@ export class WebInspectorElement extends LitElement {
                 <section
                   class="inspector-home-feature-group"
                   data-feature-state-group="available"
-                  aria-label="Available features"
+                  aria-label="Features available to add"
                 >
                   <header class="inspector-home-feature-group-header">
-                    <strong>Available</strong>
+                    <strong>Available to add</strong>
                     <span>${disabledServices.length}</span>
                   </header>
-                  <div class="inspector-home-feature-list">
+                  <div class="inspector-home-feature-list" role="list">
                     ${
                       disabledServices.length > 0
                         ? disabledServices.map(renderService)
@@ -11822,6 +11887,51 @@ export class WebInspectorElement extends LitElement {
       </section>
     `;
   }
+
+  private showHomeFeaturePromptCopyState(
+    serviceId: HomeServiceId,
+    state: Exclude<HomeFeaturePromptCopyState, "idle">,
+    generation: number,
+  ): void {
+    if (generation !== this.homeFeaturePromptCopyGeneration) return;
+    if (this.homeFeaturePromptCopyResetTimeoutId !== null) {
+      window.clearTimeout(this.homeFeaturePromptCopyResetTimeoutId);
+    }
+    this.homeFeaturePromptCopyState = { serviceId, state };
+    this.requestUpdate();
+    this.homeFeaturePromptCopyResetTimeoutId = window.setTimeout(() => {
+      if (generation !== this.homeFeaturePromptCopyGeneration) return;
+      this.homeFeaturePromptCopyState = null;
+      this.homeFeaturePromptCopyResetTimeoutId = null;
+      this.requestUpdate();
+    }, 2_000);
+  }
+
+  private handleHomeFeaturePromptCopy = async (
+    service: HomeModel["services"][number],
+    event?: Event,
+  ): Promise<void> => {
+    const generation = (this.homeFeaturePromptCopyGeneration += 1);
+    if (this.homeFeaturePromptCopyResetTimeoutId !== null) {
+      window.clearTimeout(this.homeFeaturePromptCopyResetTimeoutId);
+      this.homeFeaturePromptCopyResetTimeoutId = null;
+    }
+    this.homeFeaturePromptCopyState = null;
+    this.requestUpdate();
+
+    const clipboard = this.getClipboard(event);
+    if (!clipboard?.writeText) {
+      this.showHomeFeaturePromptCopyState(service.id, "error", generation);
+      return;
+    }
+
+    try {
+      await clipboard.writeText(homeFeatureImplementationPrompt(service));
+      this.showHomeFeaturePromptCopyState(service.id, "copied", generation);
+    } catch {
+      this.showHomeFeaturePromptCopyState(service.id, "error", generation);
+    }
+  };
 
   private handleHomeHeroCta(action: HomeHeroAction): void {
     if (this.core?.telemetryDisabled) return;
