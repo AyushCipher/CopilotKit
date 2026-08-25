@@ -44,17 +44,17 @@ export type HomeFeatureImplementationPromptContext = {
 };
 
 /**
- * A self-contained handoff for a coding agent. The onboarding command gives
- * the agent the project-specific setup context, while the feature guide keeps
- * the work focused on the selected Inspector capability.
+ * A self-contained handoff for a coding agent. It answers the onboarding
+ * workflow's session and feedback consent gates up front, then keeps the
+ * agent focused on a complete, locally validated feature integration.
  */
 export function homeFeatureImplementationPrompt(
   service: Pick<HomeServiceTile, "label" | "docsUrl">,
   context: HomeFeatureImplementationPromptContext,
 ): string {
-  return `Identify which coding-agent product you are, using a short slug such as \`codex\` or \`claude-code\`. From the root of the project where you want CopilotKit, run \`npx copilotkit@latest onboard start --run ${context.onboardingRunId} --coding-agent <coding-agent-slug>\`.
+  return `Identify your coding-agent slug (for example, \`codex\` or \`claude-code\`). From the target project root, run \`npx copilotkit@latest onboard start --run ${context.onboardingRunId} --coding-agent <coding-agent-slug>\` and follow its instructions. If it requires a CopilotKit CLI session check, you have permission to run it; never reveal credentials or send optional diagnostic feedback reports.
 
-This command will give you context about how to onboard CopilotKit. Use that knowledge in conjunction with the ${service.label} documentation (${service.docsUrl}), come up with a plan, and execute that plan until ${service.label} is enabled successfully.`;
+First inspect the project and confirm that ${service.label} is not already enabled. Then use the onboarding guidance and the ${service.label} guide (${service.docsUrl}) to plan and implement the complete integration while preserving existing behavior. Continue until local validation proves ${service.label} works—not merely that the code compiles—including a build or test and a runtime or Inspector capability check where available.`;
 }
 
 export type HomeModel = {

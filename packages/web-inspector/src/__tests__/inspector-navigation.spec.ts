@@ -1060,9 +1060,15 @@ test("Home feature actions copy correlated onboarding prompts", async () => {
     );
     const onboardingRunIds = copiedPrompts.map((prompt) => {
       expect(prompt).toContain(
-        "Identify which coding-agent product you are, using a short slug",
+        "Identify your coding-agent slug (for example, `codex` or `claude-code`)",
       );
-      expect(prompt).toContain("A2UI documentation");
+      expect(prompt).toContain(
+        "never reveal credentials or send optional diagnostic feedback reports",
+      );
+      expect(prompt).toContain(
+        "local validation proves A2UI works—not merely that the code compiles",
+      );
+      expect(prompt).toContain("A2UI guide");
       const match = prompt.match(
         /--run ([a-f0-9]{32}) --coding-agent <coding-agent-slug>/,
       );

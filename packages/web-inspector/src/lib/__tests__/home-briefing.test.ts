@@ -61,9 +61,9 @@ describe("home-briefing", () => {
         onboardingRunId: "21bcf98aa5fd4e6287c0d0b5efc46217",
       }),
     )
-      .toBe(`Identify which coding-agent product you are, using a short slug such as \`codex\` or \`claude-code\`. From the root of the project where you want CopilotKit, run \`npx copilotkit@latest onboard start --run 21bcf98aa5fd4e6287c0d0b5efc46217 --coding-agent <coding-agent-slug>\`.
+      .toBe(`Identify your coding-agent slug (for example, \`codex\` or \`claude-code\`). From the target project root, run \`npx copilotkit@latest onboard start --run 21bcf98aa5fd4e6287c0d0b5efc46217 --coding-agent <coding-agent-slug>\` and follow its instructions. If it requires a CopilotKit CLI session check, you have permission to run it; never reveal credentials or send optional diagnostic feedback reports.
 
-This command will give you context about how to onboard CopilotKit. Use that knowledge in conjunction with the Learning documentation (https://docs.copilotkit.ai/premium/intelligence-platform), come up with a plan, and execute that plan until Learning is enabled successfully.`);
+First inspect the project and confirm that Learning is not already enabled. Then use the onboarding guidance and the Learning guide (https://docs.copilotkit.ai/premium/intelligence-platform) to plan and implement the complete integration while preserving existing behavior. Continue until local validation proves Learning works—not merely that the code compiles—including a build or test and a runtime or Inspector capability check where available.`);
   });
 
   it("marks a linked project as connected and keeps Threads usage on the project card", () => {
