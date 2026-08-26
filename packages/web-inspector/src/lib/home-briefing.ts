@@ -490,7 +490,7 @@ export function buildHomeModel(input: HomeBriefingInput): HomeModel {
       },
       {
         id: "audio",
-        label: "Audio",
+        label: "Voice",
         enabled: input.audioOn,
         docsUrl: SERVICE_DOCS_URL.audio,
       },

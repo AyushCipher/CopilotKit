@@ -58,7 +58,9 @@ describe("home-briefing", () => {
     const suggestions = model.services.find(
       (service) => service.id === "suggestions",
     );
+    const voice = model.services.find((service) => service.id === "audio");
     expect(learning).toMatchObject({ label: "Learning" });
+    expect(voice).toMatchObject({ label: "Voice" });
     expect(suggestions).toMatchObject({
       docsUrl:
         "https://docs.copilotkit.ai/reference/hooks/useConfigureSuggestions",
