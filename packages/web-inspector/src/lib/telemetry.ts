@@ -22,6 +22,7 @@ import {
   isTelemetryOptedOut,
   markTelemetryDisclosureShown,
 } from "./persistence.js";
+import type { HomeFeatureOnboardingIntent } from "./home-briefing.js";
 import packageJson from "../../package.json" with { type: "json" };
 
 // V1 funnel events. Namespaced `oss.inspector.*` so the lambda's
@@ -611,10 +612,12 @@ export function trackHomeCtaClicked(props: InspectorHomeTelemetryProps): void {
  */
 export function trackHomeFeaturePromptClicked(props: {
   feature_id: string;
+  onboarding_intent: HomeFeatureOnboardingIntent;
   onboarding_run_id: string;
 }): void {
   track(TELEMETRY_EVENTS.homeFeaturePromptClicked, {
     feature_id: props.feature_id,
+    onboarding_intent: props.onboarding_intent,
     onboarding_run_id: props.onboarding_run_id,
     group_key: "home",
     leaf_key: "home",

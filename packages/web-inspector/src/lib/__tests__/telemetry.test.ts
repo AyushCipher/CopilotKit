@@ -448,6 +448,7 @@ describe("typed helpers", () => {
 it("tracks feature prompt clicks with the onboarding run ID", async () => {
   trackHomeFeaturePromptClicked({
     feature_id: "a2ui",
+    onboarding_intent: "add-a2ui",
     onboarding_run_id: "21bcf98aa5fd4e6287c0d0b5efc46217",
   });
   await Promise.resolve();
@@ -461,6 +462,7 @@ it("tracks feature prompt clicks with the onboarding run ID", async () => {
     event: "oss.inspector.home_feature_prompt_clicked",
     properties: {
       feature_id: "a2ui",
+      onboarding_intent: "add-a2ui",
       onboarding_run_id: "21bcf98aa5fd4e6287c0d0b5efc46217",
       group_key: "home",
       leaf_key: "home",

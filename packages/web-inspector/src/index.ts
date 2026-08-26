@@ -624,18 +624,25 @@ function createPlaygroundThreadId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `playground-${Date.now()}`;
 }
 
-/** Generate a UUID v4 token suitable for correlating an onboarding click. */
-function createOnboardingRunId(): string {
-  const uuid = globalThis.crypto?.randomUUID?.();
-  if (uuid) return uuid.replaceAll("-", "");
+const ONBOARDING_RUN_ID_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
-  // Browsers with a Clipboard API also provide crypto.randomUUID(), but retain
-  // a UUID-shaped fallback for older test and embedded-browser environments.
-  return "xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx".replace(/[xy]/g, (character) => {
-    const random = Math.floor(Math.random() * 16);
-    const value = character === "x" ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
+/** Generate the 12-character URL-safe token accepted by the onboarding CLI. */
+function createOnboardingRunId(): string {
+  const values = new Uint8Array(12);
+  const crypto = globalThis.crypto;
+  if (crypto?.getRandomValues) {
+    crypto.getRandomValues(values);
+    return Array.from(values, (value) =>
+      ONBOARDING_RUN_ID_ALPHABET.charAt(value & 0x3f),
+    ).join("");
+  }
+
+  return Array.from({ length: 12 }, () =>
+    ONBOARDING_RUN_ID_ALPHABET.charAt(
+      Math.floor(Math.random() * ONBOARDING_RUN_ID_ALPHABET.length),
+    ),
+  ).join("");
 }
 const THREADS_DOCS_URL = "https://docs.copilotkit.ai/threads";
 const THREADS_RUNTIME_SETUP_DOCS_URL =
@@ -11957,6 +11964,7 @@ export class WebInspectorElement extends LitElement {
     if (!this.core?.telemetryDisabled) {
       trackHomeFeaturePromptClicked({
         feature_id: service.id,
+        onboarding_intent: service.onboardingIntent,
         onboarding_run_id: onboardingRunId,
       });
     }

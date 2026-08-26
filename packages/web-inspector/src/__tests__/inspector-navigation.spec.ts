@@ -1060,17 +1060,14 @@ test("Home feature actions copy correlated onboarding prompts", async () => {
     );
     const onboardingRunIds = copiedPrompts.map((prompt) => {
       expect(prompt).toContain(
-        "Identify your coding-agent slug (for example, `codex` or `claude-code`)",
+        "Run this command from the target project root and follow the instructions it provides:",
       );
-      expect(prompt).toContain(
-        "never reveal credentials or send optional diagnostic feedback reports",
-      );
-      expect(prompt).toContain(
-        "local validation proves A2UI works—not merely that the code compiles",
-      );
-      expect(prompt).toContain("A2UI guide");
+      expect(prompt).toContain("npx --yes copilotkit@latest onboard start \\");
+      expect(prompt).toContain("--intent add-a2ui \\");
+      expect(prompt).toContain("--coding-agent <coding-agent-slug>");
+      expect(prompt).not.toContain("Identify your coding-agent slug");
       const match = prompt.match(
-        /--run ([a-f0-9]{32}) --coding-agent <coding-agent-slug>/,
+        /--run ([A-Za-z0-9_-]{12}) \\\n+  --coding-agent <coding-agent-slug>/,
       );
       expect(match?.[1]).toBeDefined();
       return match![1]!;
@@ -1083,10 +1080,12 @@ test("Home feature actions copy correlated onboarding prompts", async () => {
     expect(promptClicks.map(({ properties }) => properties)).toEqual([
       expect.objectContaining({
         feature_id: "a2ui",
+        onboarding_intent: "add-a2ui",
         onboarding_run_id: onboardingRunIds[0],
       }),
       expect.objectContaining({
         feature_id: "a2ui",
+        onboarding_intent: "add-a2ui",
         onboarding_run_id: onboardingRunIds[1],
       }),
     ]);
