@@ -31,41 +31,33 @@ export type HomeServiceId =
   | "audio"
   | "websocket";
 
-export type HomeFeatureOnboardingIntent =
-  | "add-rich-threads"
-  | "add-learning"
-  | "add-a2ui"
-  | "add-open-generative-ui"
-  | "add-chat-suggestions"
-  | "add-voice"
-  | "add-realtime-sync";
-
 export type HomeServiceTile = {
   id: HomeServiceId;
   label: string;
   enabled: boolean;
   url?: string;
   docsUrl: string;
-  onboardingIntent: HomeFeatureOnboardingIntent;
 };
 
 export type HomeFeatureImplementationPromptContext = {
   onboardingRunId: string;
 };
 
-/** Returns the compact CLI handoff for a feature-specific onboarding path. */
+/**
+ * A self-contained handoff for a coding agent. It answers the onboarding
+ * workflow's session and feedback consent gates up front, while keeping the
+ * feature guide—not a generic product-onboarding branch—in control of the
+ * implementation plan.
+ */
 export function homeFeatureImplementationPrompt(
-  service: Pick<HomeServiceTile, "onboardingIntent">,
+  service: Pick<HomeServiceTile, "label" | "docsUrl">,
   context: HomeFeatureImplementationPromptContext,
 ): string {
-  return [
-    "Run this command from the target project root and follow the instructions it provides:",
-    "",
-    "npx --yes copilotkit@latest onboard start \\",
-    `  --intent ${service.onboardingIntent} \\`,
-    `  --run ${context.onboardingRunId} \\`,
-    "  --coding-agent <coding-agent-slug>",
-  ].join("\n");
+  return `Identify your coding-agent slug (for example, \`codex\` or \`claude-code\`). From the target project root, run \`npx copilotkit@latest onboard start --run ${context.onboardingRunId} --coding-agent <coding-agent-slug>\` and use its output as onboarding context. If it requires a CopilotKit CLI session check, you have permission to run it; never reveal credentials or send optional diagnostic feedback reports.
+
+This task is specifically to enable ${service.label}, not to re-onboard the application. First inspect the existing CopilotKit runtime, provider, agent, and UI wiring, and confirm that ${service.label} is not already enabled. Then read the ${service.label} guide (${service.docsUrl}) and make a short plan before editing. Preserve the project's framework, package manager, installed CopilotKit version, existing agent IDs, routes, provider layout, and working behavior. Do not create, select, or alter a CopilotKit Intelligence project—or add Intelligence configuration—unless this feature's official guide explicitly requires it or the user asks.
+
+Implement the smallest complete integration: wire every feature-required client and runtime configuration into the chat-to-agent path people already use, reuse local patterns, and do not invent environment values or hardcode secrets. Add or update focused tests and run the relevant project checks. Finish only after local validation proves ${service.label} works—not merely that the code compiles. Use a feature-specific runtime or Inspector capability check and, when the feature supports one, a representative UI interaction that proves the user-facing result. If the project overrides default rendering (for example, with a wildcard tool renderer), make that override compatible with this feature; a capability flag alone is not success. Summarize the changed files, validation, and any manual setup still required.`;
 }
 
 export type HomeModel = {
@@ -471,42 +463,36 @@ export function buildHomeModel(input: HomeBriefingInput): HomeModel {
         enabled: intelligenceConnected && input.threadsAvailable,
         url: input.runtimeUrl,
         docsUrl: SERVICE_DOCS_URL.threads,
-        onboardingIntent: "add-rich-threads",
       },
       {
         id: "memory",
         label: "Learning",
         enabled: intelligenceConnected && input.memoriesOn,
         docsUrl: SERVICE_DOCS_URL.memory,
-        onboardingIntent: "add-learning",
       },
       {
         id: "a2ui",
         label: "A2UI",
         enabled: input.a2uiOn,
         docsUrl: SERVICE_DOCS_URL.a2ui,
-        onboardingIntent: "add-a2ui",
       },
       {
         id: "open-gen-ui",
         label: "Open Gen UI",
         enabled: input.openGenUiOn,
         docsUrl: SERVICE_DOCS_URL["open-gen-ui"],
-        onboardingIntent: "add-open-generative-ui",
       },
       {
         id: "suggestions",
         label: "Suggestions",
         enabled: input.suggestionsOn,
         docsUrl: SERVICE_DOCS_URL.suggestions,
-        onboardingIntent: "add-chat-suggestions",
       },
       {
         id: "audio",
         label: "Voice",
         enabled: input.audioOn,
         docsUrl: SERVICE_DOCS_URL.audio,
-        onboardingIntent: "add-voice",
       },
       {
         id: "websocket",
@@ -514,7 +500,6 @@ export function buildHomeModel(input: HomeBriefingInput): HomeModel {
         enabled: intelligenceConnected && Boolean(input.websocketUrl),
         url: input.websocketUrl,
         docsUrl: SERVICE_DOCS_URL.websocket,
-        onboardingIntent: "add-realtime-sync",
       },
     ],
     news: newsFromAnnouncement({

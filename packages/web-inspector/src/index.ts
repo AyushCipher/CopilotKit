@@ -375,6 +375,21 @@ const HUD_LEARNING_OFF_DETAIL = "Connect Intelligence to use Learning.";
 const HUD_LEARNING_ON_DETAIL = "Learning is on. Opens the Learning view.";
 const HUD_OPEN_INSPECTOR_DETAIL =
   "Same as clicking the circle. Opens the full Inspector.";
+const INTELLIGENCE_SETUP_DOCS_URL =
+  "https://docs.copilotkit.ai/premium/connect-your-runtime";
+
+type HomeFeaturePromptId = HomeServiceId | "intelligence";
+type HomeFeaturePromptTarget = Readonly<{
+  id: HomeFeaturePromptId;
+  label: string;
+  docsUrl: string;
+}>;
+
+const INTELLIGENCE_PROMPT_TARGET: HomeFeaturePromptTarget = {
+  id: "intelligence",
+  label: "Intelligence",
+  docsUrl: INTELLIGENCE_SETUP_DOCS_URL,
+};
 
 const LAUNCHER_SIGNALS: Readonly<
   Record<LauncherSignalKey, LauncherSignalDefinition>
@@ -6335,7 +6350,6 @@ export class WebInspectorElement extends LitElement {
   /** Hover/focus menu on the closed launcher. */
   private launcherHudOpen = false;
   private launcherHudSide: "left" | "right" = "left";
-  private launcherHudHelp: LauncherHudRowId | null = null;
   private launcherHudCloseTimer: ReturnType<typeof setTimeout> | null = null;
   private launcherHudIntro = false;
   private launcherHudIntroStartTimer: ReturnType<typeof setTimeout> | null =
@@ -6410,7 +6424,7 @@ export class WebInspectorElement extends LitElement {
   private threadsSetupPromptCopyResetTimeoutId: number | null = null;
   private threadsSetupPromptCopyGeneration = 0;
   private homeFeaturePromptCopyState: {
-    serviceId: HomeServiceId;
+    serviceId: HomeFeaturePromptId;
     state: HomeFeaturePromptCopyState;
   } | null = null;
   private homeFeaturePromptCopyResetTimeoutId: number | null = null;
@@ -9503,8 +9517,8 @@ export class WebInspectorElement extends LitElement {
       .cpk-launcher-hud__row {
         position: relative;
         display: grid;
-        grid-template-columns: 1fr 28px;
-        align-items: start;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
         border-radius: 7px;
         cursor: pointer;
       }
@@ -9514,14 +9528,12 @@ export class WebInspectorElement extends LitElement {
       }
 
       .cpk-launcher-hud__row:hover,
-      .cpk-launcher-hud__row:focus-within,
-      .cpk-launcher-hud__row[data-cpk-hud-help="open"] {
+      .cpk-launcher-hud__row:focus-within {
         background: rgb(255 255 255 / 0.06);
       }
 
       .cpk-launcher-hud[data-color-scheme="light"] .cpk-launcher-hud__row:hover,
-      .cpk-launcher-hud[data-color-scheme="light"] .cpk-launcher-hud__row:focus-within,
-      .cpk-launcher-hud[data-color-scheme="light"] .cpk-launcher-hud__row[data-cpk-hud-help="open"] {
+      .cpk-launcher-hud[data-color-scheme="light"] .cpk-launcher-hud__row:focus-within {
         background: #f0f0f4;
       }
 
@@ -9546,8 +9558,8 @@ export class WebInspectorElement extends LitElement {
         color: #010507;
       }
 
-      /* Stretch the row action over the whole tab, including the detail
-         copy. The help mark sits above this layer. */
+      /* Stretch the row action over the whole tab. The icon controls sit
+         above this layer and keep their own focused interactions. */
       .cpk-launcher-hud__action::after {
         content: "";
         position: absolute;
@@ -9561,9 +9573,20 @@ export class WebInspectorElement extends LitElement {
         color: #34d399;
       }
 
-      .cpk-launcher-hud__help {
+      .cpk-launcher-hud__controls {
         position: relative;
         z-index: 1;
+        display: flex;
+        align-items: center;
+      }
+
+      .cpk-launcher-hud__control {
+        position: relative;
+        display: inline-flex;
+      }
+
+      .cpk-launcher-hud__icon-button,
+      .cpk-launcher-hud__help {
         display: inline-flex;
         width: 28px;
         height: 32px;
@@ -9578,6 +9601,19 @@ export class WebInspectorElement extends LitElement {
         cursor: pointer;
       }
 
+      .cpk-launcher-hud__icon-button svg {
+        width: 15px;
+        height: 15px;
+      }
+
+      .cpk-launcher-hud__icon-button[data-copy-state="copied"] {
+        color: #34d399;
+      }
+
+      .cpk-launcher-hud__icon-button[data-copy-state="error"] {
+        color: #ff8a91;
+      }
+
       .cpk-launcher-hud__help span {
         display: inline-flex;
         width: 16px;
@@ -9589,52 +9625,86 @@ export class WebInspectorElement extends LitElement {
         line-height: 1;
       }
 
+      .cpk-launcher-hud__help {
+        cursor: help;
+      }
+
       .cpk-launcher-hud[data-color-scheme="light"] .cpk-launcher-hud__help {
         color: #68686e;
       }
 
+      .cpk-launcher-hud[data-color-scheme="light"]
+        .cpk-launcher-hud__icon-button {
+        color: #68686e;
+      }
+
+      .cpk-launcher-hud[data-color-scheme="light"]
+        .cpk-launcher-hud__icon-button[data-copy-state="copied"] {
+        color: #087653;
+      }
+
+      .cpk-launcher-hud[data-color-scheme="light"]
+        .cpk-launcher-hud__icon-button[data-copy-state="error"] {
+        color: #b4232c;
+      }
+
       .cpk-launcher-hud__help:focus-visible,
+      .cpk-launcher-hud__icon-button:focus-visible,
       .cpk-launcher-hud__action:focus-visible {
         outline: 2px solid #bec2ff;
         outline-offset: 1px;
       }
 
-      .cpk-launcher-hud__detail {
-        grid-column: 1 / -1;
-        max-height: 0;
-        margin: 0;
-        padding: 0 8px;
-        overflow: hidden;
-        color: rgb(255 255 255 / 0.78);
-        font-size: 11px;
-        font-weight: 400;
-        line-height: 1.4;
+      .cpk-launcher-hud__tooltip {
+        position: absolute;
+        right: auto;
+        bottom: calc(100% + 7px);
+        left: 50%;
+        z-index: 30;
+        width: max-content;
+        max-width: min(220px, 52vw);
+        padding: 7px 9px;
+        border: 1px solid #3a3d49;
+        border-radius: 4px;
+        background: #15171e;
+        color: #f3f4f8;
+        box-shadow: 0 8px 20px rgb(1 5 7 / 0.18);
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 1.45;
         opacity: 0;
         pointer-events: none;
-        transform: translateY(-6px);
+        transform: translate(-50%, 3px);
+        white-space: normal;
         transition:
-          max-height 200ms cubic-bezier(0.16, 1, 0.3, 1),
-          opacity 150ms ease-out,
-          transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
-          padding-bottom 200ms cubic-bezier(0.16, 1, 0.3, 1);
+          opacity 120ms ease,
+          transform 120ms ease;
       }
 
-      .cpk-launcher-hud[data-color-scheme="light"] .cpk-launcher-hud__detail {
-        color: #68686e;
-      }
-
-      .cpk-launcher-hud__row:hover .cpk-launcher-hud__detail,
-      .cpk-launcher-hud__row:focus-within .cpk-launcher-hud__detail,
-      .cpk-launcher-hud__row[data-cpk-hud-help="open"] .cpk-launcher-hud__detail {
-        max-height: 72px;
-        padding: 0 8px 7px;
+      .cpk-launcher-hud__control:hover .cpk-launcher-hud__tooltip,
+      .cpk-launcher-hud__control:focus-within .cpk-launcher-hud__tooltip {
         opacity: 1;
-        transform: none;
+        transform: translate(-50%, 0);
+      }
+
+      .cpk-launcher-hud__list:first-child .cpk-launcher-hud__tooltip {
+        top: calc(100% + 7px);
+        bottom: auto;
+        transform: translate(-50%, -3px);
+      }
+
+      .cpk-launcher-hud__list:first-child
+        .cpk-launcher-hud__control:hover
+        .cpk-launcher-hud__tooltip,
+      .cpk-launcher-hud__list:first-child
+        .cpk-launcher-hud__control:focus-within
+        .cpk-launcher-hud__tooltip {
+        transform: translate(-50%, 0);
       }
 
       @media (prefers-reduced-motion: reduce) {
         .cpk-launcher-hud,
-        .cpk-launcher-hud__detail {
+        .cpk-launcher-hud__tooltip {
           transition: none;
         }
       }
@@ -10611,7 +10681,6 @@ export class WebInspectorElement extends LitElement {
         this.launcherHudIntroEndTimer = null;
         this.launcherHudIntro = false;
         this.launcherHudOpen = false;
-        this.launcherHudHelp = null;
         this.requestUpdate();
       }, LAUNCHER_HUD_INTRO_MS.duration);
     }, delay);
@@ -10670,9 +10739,8 @@ export class WebInspectorElement extends LitElement {
       clearTimeout(this.launcherHudCloseTimer);
       this.launcherHudCloseTimer = null;
     }
-    if (!this.launcherHudOpen && this.launcherHudHelp === null) return;
+    if (!this.launcherHudOpen) return;
     this.launcherHudOpen = false;
-    this.launcherHudHelp = null;
     this.requestUpdate();
   }
 
@@ -10738,18 +10806,11 @@ export class WebInspectorElement extends LitElement {
     this.openInspector("floating_button");
   };
 
-  private handleHudHelpClick = (event: Event, row: LauncherHudRowId): void => {
-    event.preventDefault();
-    event.stopPropagation();
-    this.launcherHudHelp = this.launcherHudHelp === row ? null : row;
-    this.requestUpdate();
-  };
-
   private handleHudRowClick = (event: Event, row: LauncherHudRowId): void => {
     const target = event.target;
     if (
       target instanceof Element &&
-      target.closest(".cpk-launcher-hud__help, [data-cpk-hud-action]")
+      target.closest(".cpk-launcher-hud__controls, [data-cpk-hud-action]")
     ) {
       return;
     }
@@ -10782,15 +10843,26 @@ export class WebInspectorElement extends LitElement {
     label: string;
     detail: string;
     connected?: boolean;
+    promptTarget?: HomeFeaturePromptTarget | undefined;
     introIndex: number;
   }): TemplateResult {
-    const helpOpen = this.launcherHudHelp === args.id;
     const detailId = `cpk-hud-detail-${args.id}`;
+    const copyTooltipId = `cpk-hud-copy-${args.id}`;
+    const copyState = args.promptTarget
+      ? this.homeFeaturePromptCopyState?.serviceId === args.promptTarget.id
+        ? this.homeFeaturePromptCopyState.state
+        : "idle"
+      : "idle";
+    const copyTooltip =
+      copyState === "copied"
+        ? "Prompt copied"
+        : copyState === "error"
+          ? "Copy failed. Try again"
+          : "Copy setup prompt";
     return html`
       <li
         class="cpk-launcher-hud__row"
         data-cpk-hud-row=${args.id}
-        data-cpk-hud-help=${helpOpen ? "open" : nothing}
         style=${styleMap({
           "--cpk-hud-row-index": `${args.introIndex}`,
           "--cpk-hud-row-delay": `${
@@ -10810,18 +10882,71 @@ export class WebInspectorElement extends LitElement {
         >
           ${args.connected ? this.renderHudCheck() : nothing}${args.label}
         </button>
-        <button
-          type="button"
-          class="cpk-launcher-hud__help"
-          aria-expanded=${helpOpen ? "true" : "false"}
-          aria-controls=${detailId}
-          aria-label=${`About ${args.label}`}
-          @click=${(event: Event) => this.handleHudHelpClick(event, args.id)}
-          @pointerdown=${(event: Event) => event.stopPropagation()}
-        >
-          <span aria-hidden="true">?</span>
-        </button>
-        <p class="cpk-launcher-hud__detail" id=${detailId}>${args.detail}</p>
+        <span class="cpk-launcher-hud__controls">
+          ${
+            args.promptTarget
+              ? html`
+                  <span class="cpk-launcher-hud__control">
+                    <button
+                      type="button"
+                      class="cpk-launcher-hud__icon-button"
+                      data-cpk-hud-copy=${args.promptTarget.id}
+                      data-copy-state=${copyState}
+                      aria-label=${
+                        copyState === "copied"
+                          ? `${args.promptTarget.label} setup prompt copied`
+                          : copyState === "error"
+                            ? `Could not copy the ${args.promptTarget.label} setup prompt. Try again`
+                            : `Copy ${args.promptTarget.label} setup prompt`
+                      }
+                      aria-describedby=${copyTooltipId}
+                      @click=${(event: Event) =>
+                        this.handleHomeFeaturePromptCopy(
+                          args.promptTarget!,
+                          event,
+                        )}
+                      @pointerdown=${(event: Event) => event.stopPropagation()}
+                    >
+                      ${this.renderIcon(copyState === "copied" ? "Check" : "Copy")}
+                    </button>
+                    <span
+                      class="cpk-launcher-hud__tooltip"
+                      id=${copyTooltipId}
+                      role="tooltip"
+                      >${copyTooltip}</span
+                    >
+                  </span>
+                  <span class="sr-only" aria-live="polite">
+                    ${
+                      copyState === "copied"
+                        ? `${args.promptTarget.label} setup prompt copied.`
+                        : copyState === "error"
+                          ? `Could not copy the ${args.promptTarget.label} setup prompt.`
+                          : ""
+                    }
+                  </span>
+                `
+              : nothing
+          }
+          <span class="cpk-launcher-hud__control">
+            <span
+              class="cpk-launcher-hud__help"
+              role="img"
+              tabindex="0"
+              aria-label=${`About ${args.label}`}
+              aria-describedby=${detailId}
+              @pointerdown=${(event: Event) => event.stopPropagation()}
+            >
+              <span aria-hidden="true">?</span>
+            </span>
+            <span
+              class="cpk-launcher-hud__tooltip"
+              id=${detailId}
+              role="tooltip"
+              >${args.detail}</span
+            >
+          </span>
+        </span>
       </li>
     `;
   }
@@ -10839,6 +10964,12 @@ export class WebInspectorElement extends LitElement {
       (service) => service.id === "memory" && service.enabled,
     );
     const intelligenceOn = homeModel.hero.connection === "connected";
+    const threadsPromptTarget = homeModel.services.find(
+      (service) => service.id === "threads",
+    );
+    const learningPromptTarget = homeModel.services.find(
+      (service) => service.id === "memory",
+    );
     return html`
       <div
         class="cpk-launcher-hud"
@@ -10870,6 +11001,7 @@ export class WebInspectorElement extends LitElement {
                 ? HUD_THREADS_ON_DETAIL
                 : HUD_THREADS_OFF_DETAIL,
               connected: threadsOn,
+              promptTarget: threadsOn ? undefined : threadsPromptTarget,
               introIndex: 1,
             })}
             ${this.renderHudRow({
@@ -10881,6 +11013,9 @@ export class WebInspectorElement extends LitElement {
                 ? HUD_INTELLIGENCE_ON_DETAIL
                 : HUD_INTELLIGENCE_OFF_DETAIL,
               connected: intelligenceOn,
+              promptTarget: intelligenceOn
+                ? undefined
+                : INTELLIGENCE_PROMPT_TARGET,
               introIndex: 2,
             })}
             ${this.renderHudRow({
@@ -10892,6 +11027,7 @@ export class WebInspectorElement extends LitElement {
                 ? HUD_LEARNING_ON_DETAIL
                 : HUD_LEARNING_OFF_DETAIL,
               connected: learningOn,
+              promptTarget: learningOn ? undefined : learningPromptTarget,
               introIndex: 3,
             })}
           </ul>
@@ -11930,7 +12066,7 @@ export class WebInspectorElement extends LitElement {
   }
 
   private showHomeFeaturePromptCopyState(
-    serviceId: HomeServiceId,
+    serviceId: HomeFeaturePromptId,
     state: Exclude<HomeFeaturePromptCopyState, "idle">,
     generation: number,
   ): void {
@@ -11949,7 +12085,7 @@ export class WebInspectorElement extends LitElement {
   }
 
   private handleHomeFeaturePromptCopy = async (
-    service: HomeModel["services"][number],
+    service: HomeFeaturePromptTarget,
     event?: Event,
   ): Promise<void> => {
     const generation = (this.homeFeaturePromptCopyGeneration += 1);
@@ -11964,7 +12100,6 @@ export class WebInspectorElement extends LitElement {
     if (!this.core?.telemetryDisabled) {
       trackHomeFeaturePromptClicked({
         feature_id: service.id,
-        onboarding_intent: service.onboardingIntent,
         onboarding_run_id: onboardingRunId,
       });
     }

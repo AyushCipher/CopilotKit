@@ -361,12 +361,10 @@ test("Turn on Threads lands on the Threads view", async () => {
 test("a press on the row body lands, not only the title", async () => {
   const { inspector, openHud } = await setup();
   await openHud();
-  const detail = requireElement(
-    root(inspector).querySelector<HTMLElement>(
-      '[data-cpk-hud-row="threads"] .cpk-launcher-hud__detail',
-    ),
+  const row = requireElement(
+    root(inspector).querySelector<HTMLElement>('[data-cpk-hud-row="threads"]'),
   );
-  detail.click();
+  row.click();
   await settle(inspector);
   expect(currentMenu(inspector)).toBe("threads");
 });
@@ -380,23 +378,83 @@ test("Threads on still lands on the Threads view", async () => {
   expect(currentMenu(inspector)).toBe("threads");
 });
 
-test("the help mark keeps a row's detail open without hover", async () => {
+test("help uses a tooltip without expanding the row", async () => {
   const { inspector, openHud } = await setup();
   await openHud();
   const help = requireElement(
-    root(inspector).querySelector<HTMLButtonElement>(
-      '[data-cpk-hud-row="threads"] [aria-expanded]',
+    root(inspector).querySelector<HTMLElement>(
+      '[data-cpk-hud-row="threads"] .cpk-launcher-hud__help',
     ),
   );
-  help.click();
-  await settle(inspector);
-  expect(
-    root(inspector)
-      .querySelector('[data-cpk-hud-row="threads"]')
-      ?.getAttribute("data-cpk-hud-help"),
-  ).toBe("open");
-  expect(help.getAttribute("aria-expanded")).toBe("true");
+  const detailId = help.getAttribute("aria-describedby");
+  const tooltip = requireElement(
+    root(inspector).getElementById(detailId ?? ""),
+  );
+  expect(tooltip.getAttribute("role")).toBe("tooltip");
+  expect(tooltip.textContent).toBe("Inspect conversations from this app.");
+  expect(help.hasAttribute("aria-expanded")).toBe(false);
+  expect(root(inspector).querySelector(".cpk-launcher-hud__detail")).toBeNull();
   expect(root(inspector).querySelector(".inspector-window")).toBeNull();
+});
+
+test("disabled features expose copyable setup prompts without opening Inspector", async () => {
+  const originalClipboard = Object.getOwnPropertyDescriptor(
+    navigator,
+    "clipboard",
+  );
+  const writeText = vi
+    .fn<(value: string) => Promise<void>>()
+    .mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText },
+  });
+
+  try {
+    const { inspector, openHud } = await setup();
+    await openHud();
+
+    expect(
+      Array.from(
+        root(inspector).querySelectorAll<HTMLElement>("[data-cpk-hud-copy]"),
+      ).map((control) => control.dataset.cpkHudCopy),
+    ).toEqual(["threads", "intelligence", "memory"]);
+
+    const copyThreads = requireElement(
+      root(inspector).querySelector<HTMLButtonElement>(
+        '[data-cpk-hud-copy="threads"]',
+      ),
+    );
+    copyThreads.click();
+    await settle(inspector);
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const prompt = String(writeText.mock.calls[0]?.[0]);
+    expect(prompt).toContain("This task is specifically to enable Threads");
+    expect(prompt).toContain("https://docs.copilotkit.ai/threads");
+    expect(prompt).not.toContain("--intent");
+    expect(copyThreads.dataset.copyState).toBe("copied");
+    expect(copyThreads.getAttribute("aria-label")).toBe(
+      "Threads setup prompt copied",
+    );
+    expect(hudOpen(inspector)).toBe(true);
+    expect(root(inspector).querySelector(".inspector-window")).toBeNull();
+  } finally {
+    if (originalClipboard) {
+      Object.defineProperty(navigator, "clipboard", originalClipboard);
+    } else {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+  }
+});
+
+test("enabled features do not show setup prompt actions", async () => {
+  const { inspector, openHud } = await setup({
+    intelligence: true,
+    endpoints: ENABLED_ENDPOINTS,
+  });
+  await openHud();
+  expect(root(inspector).querySelector("[data-cpk-hud-copy]")).toBeNull();
 });
 
 test("Turn on Intelligence lands on Home", async () => {
