@@ -5,8 +5,8 @@ import {
   CopilotRuntime,
   CopilotSseRuntime,
 } from "../core/runtime";
-import type { CopilotIntelligenceRuntimeOptions } from "../core/runtime";
-import type { CopilotKitIntelligence } from "../intelligence-platform";
+import { CopilotKitIntelligence } from "../intelligence-platform";
+import type { CopilotKitIntelligenceConfig } from "../intelligence-platform";
 import { InMemoryAgentRunner } from "../runner/in-memory";
 import { IntelligenceAgentRunner } from "../runner/intelligence";
 
@@ -22,11 +22,35 @@ describe("runtime construction", () => {
       ɵgetClientWsUrl: vi.fn().mockReturnValue("ws://client.example"),
     }) as unknown as CopilotKitIntelligence;
 
-  it("exposes Learning configuration only under the experimental marker", () => {
-    type HasUnprefixedLearning =
-      "learning" extends keyof CopilotIntelligenceRuntimeOptions ? true : false;
+  it("exposes Learning configuration on CopilotKitIntelligence", () => {
+    type HasPublicLearningSelector =
+      "getLearningContainerId" extends keyof CopilotKitIntelligenceConfig
+        ? true
+        : false;
+    const getLearningContainerId = vi.fn().mockResolvedValue("support-quality");
+    const sdk = new CopilotKitIntelligence({
+      apiKey: "test-api-key",
+      getLearningContainerId,
+    });
 
-    expectTypeOf<HasUnprefixedLearning>().toEqualTypeOf<false>();
+    const runtime = new CopilotIntelligenceRuntime({
+      agents,
+      intelligence: sdk,
+      identifyUser,
+    });
+
+    expect(runtime.learning?.containerId).toBe(getLearningContainerId);
+    expectTypeOf<HasPublicLearningSelector>().toEqualTypeOf<true>();
+  });
+
+  it("rejects a non-callback public Learning Container selector", () => {
+    expect(
+      () =>
+        new CopilotKitIntelligence({
+          apiKey: "test-api-key",
+          getLearningContainerId: "support-quality",
+        } as never),
+    ).toThrow("`getLearningContainerId` must be a callback");
   });
 
   it("builds an SSE runtime by default", () => {
@@ -79,6 +103,23 @@ describe("runtime construction", () => {
     });
 
     expect(runtime.learning?.containerId).toBe(containerId);
+  });
+
+  it("rejects public and deprecated Learning Container config together", () => {
+    const sdk = new CopilotKitIntelligence({
+      apiKey: "test-api-key",
+      getLearningContainerId: () => "public-container",
+    });
+
+    expect(
+      () =>
+        new CopilotIntelligenceRuntime({
+          agents,
+          intelligence: sdk,
+          identifyUser,
+          ɵlearning: { containerId: "deprecated-container" },
+        }),
+    ).toThrow("do not also pass deprecated `ɵlearning`");
   });
 
   it.each(["Support Quality", "support--quality", "-support"])(

@@ -1,6 +1,7 @@
 import { logger, parseInspectorMetadataV1 } from "@copilotkit/shared";
 import type { InspectorMetadataV1 } from "@copilotkit/shared";
 import { randomUUID } from "crypto";
+import type { GetLearningContainerId } from "../core/learning";
 
 /**
  * Header name carrying the per-call end-user identity that the CopilotKit
@@ -108,6 +109,11 @@ export interface CopilotKitIntelligenceConfig {
   wsUrl?: string;
   /** API key for authenticating with CopilotKit Intelligence */
   apiKey: string;
+  /**
+   * Chooses the stable Learning Container ID for each web or Channel run.
+   * Return `null` or `undefined` to leave that run unassigned.
+   */
+  getLearningContainerId?: GetLearningContainerId;
   /**
    * Enable Enterprise Learning — expose CopilotKit Intelligence's
    * built-in tools (bash + thread/memory tools) to agent runs on an
@@ -494,11 +500,20 @@ export class CopilotKitIntelligence {
   #channelsWsUrl: string;
   #apiKey: string;
   #enterpriseLearningEnabled: boolean;
+  #getLearningContainerId?: GetLearningContainerId;
   #threadCreatedListeners = new Set<(thread: ThreadSummary) => void>();
   #threadUpdatedListeners = new Set<(thread: ThreadSummary) => void>();
   #threadDeletedListeners = new Set<(params: ThreadDeletedPayload) => void>();
 
   constructor(config: CopilotKitIntelligenceConfig) {
+    if (
+      config.getLearningContainerId !== undefined &&
+      typeof config.getLearningContainerId !== "function"
+    ) {
+      throw new Error(
+        "CopilotKitIntelligence `getLearningContainerId` must be a callback",
+      );
+    }
     const configuredApiUrl = configuredUrl(config.apiUrl);
     const configuredWsUrl = configuredUrl(config.wsUrl);
     warnOnPartialHostOverride(configuredApiUrl, configuredWsUrl);
@@ -516,6 +531,7 @@ export class CopilotKitIntelligence {
     this.#channelsWsUrl = deriveChannelsWsUrl(intelligenceWsUrl);
     this.#apiKey = config.apiKey;
     this.#enterpriseLearningEnabled = config.enableEnterpriseLearning ?? false;
+    this.#getLearningContainerId = config.getLearningContainerId;
 
     if (config.onThreadCreated) {
       this.onThreadCreated(config.onThreadCreated);
@@ -611,6 +627,11 @@ export class CopilotKitIntelligence {
   /** @internal Used by `attachIntelligenceEnterpriseLearning` to populate `Authorization`. */
   ɵgetApiKey(): string {
     return this.#apiKey;
+  }
+
+  /** @internal Used by the Intelligence runtime to assign Learning Containers. */
+  ɵgetLearningContainerId(): GetLearningContainerId | undefined {
+    return this.#getLearningContainerId;
   }
 
   /** @internal Used by `attachIntelligenceEnterpriseLearning` to gate MCP attachment. */

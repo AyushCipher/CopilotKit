@@ -127,21 +127,25 @@ When you register multiple agents, the runtime handles discovery and routing aut
 
 [Threads](/threads), the [inspector](/inspector), and other CopilotKit Intelligence capabilities are provided through the runtime. These give you conversation persistence and debugging without extra setup.
 
-The examples below take `intelligence` and `identifyUser` as given. `intelligence` is a `CopilotKitIntelligence` instance — see [Connect your runtime to Intelligence](/premium/connect-your-runtime) for the constructor and where the project API key comes from.
+The examples below take `identifyUser` as given and create a
+`CopilotKitIntelligence` client. See [Connect your runtime to Intelligence](/premium/connect-your-runtime)
+for the project API key.
 
 #### Assign Threads to Learning Containers
 
-Create a Learning Container in your Intelligence Project, then pass its stable
-ID to the Runtime:
+Create a Learning Container in your Intelligence Project, then return its
+stable ID from the Intelligence client:
 
 ```ts title="runtime.ts"
+const intelligence = new CopilotKitIntelligence({
+  apiKey: process.env.INTELLIGENCE_API_KEY!,
+  getLearningContainerId: () => "support-quality",
+});
+
 const runtime = new CopilotRuntime({
   agents: { default: myAgent },
   intelligence,
   identifyUser,
-  ɵlearning: {
-    containerId: "support-quality",
-  },
 });
 ```
 
@@ -149,16 +153,18 @@ Use a callback when the Container depends on the run. The same callback handles
 web and Channel runs:
 
 ```ts title="runtime.ts"
+const intelligence = new CopilotKitIntelligence({
+  apiKey: process.env.INTELLIGENCE_API_KEY!,
+  getLearningContainerId: async ({ surface, agentId, userId, threadId }) => {
+    return chooseLearningContainer({ surface, agentId, userId, threadId });
+  },
+});
+
 const runtime = new CopilotRuntime({
   agents: { default: myAgent },
   intelligence,
   identifyUser,
   channels: [supportChannel],
-  ɵlearning: {
-    containerId: async ({ surface, agentId, userId, threadId }) => {
-      return chooseLearningContainer({ surface, agentId, userId, threadId });
-    },
-  },
 });
 ```
 

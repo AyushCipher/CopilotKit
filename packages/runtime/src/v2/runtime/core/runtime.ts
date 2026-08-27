@@ -49,6 +49,7 @@ import { assertStableLearningContainerId } from "./learning";
 export type {
   CopilotRuntimeLearningConfig,
   CopilotRuntimeLearningContext,
+  GetLearningContainerId,
 } from "./learning";
 
 export const VERSION = pkg.version;
@@ -246,7 +247,10 @@ export interface CopilotSseRuntimeOptions extends BaseCopilotRuntimeOptions {
 interface CopilotIntelligenceRuntimeBaseOptions extends BaseCopilotRuntimeOptions {
   /** Configures Intelligence mode for durable threads and realtime events. */
   intelligence: CopilotKitIntelligence;
-  /** Chooses one stable Learning Container ID for each web or Channel run. */
+  /**
+   * Chooses one stable Learning Container ID for each web or Channel run.
+   * @deprecated Set `getLearningContainerId` on `CopilotKitIntelligence`.
+   */
   ɵlearning?: CopilotRuntimeLearningConfig;
   /** Auto-generate short names for newly created threads. */
   generateThreadNames?: boolean;
@@ -569,6 +573,16 @@ export class CopilotIntelligenceRuntime
         "Intelligence Runtime `ɵlearning.containerId` must be a stable ID or callback",
       );
     }
+    const getLearningContainerId =
+      options.intelligence.ɵgetLearningContainerId?.();
+    if (
+      rawOptions.ɵlearning !== undefined &&
+      getLearningContainerId !== undefined
+    ) {
+      throw new Error(
+        "Configure Learning Containers with `getLearningContainerId` on `CopilotKitIntelligence`; do not also pass deprecated `ɵlearning` to `CopilotRuntime`",
+      );
+    }
     if (
       typeof (rawOptions.ɵlearning as { containerId?: unknown } | undefined)
         ?.containerId === "string"
@@ -587,7 +601,9 @@ export class CopilotIntelligenceRuntime
       }),
     );
     this.intelligence = options.intelligence;
-    this.learning = options.ɵlearning;
+    this.learning = getLearningContainerId
+      ? { containerId: getLearningContainerId }
+      : options.ɵlearning;
     this.identifyUser = hasWebIdentity
       ? (rawOptions.identifyUser as IdentifyUserCallback)
       : undefined;

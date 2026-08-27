@@ -56,3 +56,21 @@ test("forwards Intelligence options through the package-root runtime", () => {
     maxRejoinMs: 3_500,
   });
 });
+
+test("uses the public Intelligence Learning Container selector through the package-root runtime", () => {
+  const getLearningContainerId = vi.fn(() => "support-quality");
+  const intelligence = new CopilotKitIntelligence({
+    apiKey: "test-api-key",
+    apiUrl: "https://intelligence.example",
+    wsUrl: "wss://intelligence.example",
+    getLearningContainerId,
+  });
+
+  const runtime = new CopilotRuntime({
+    agents: {},
+    intelligence,
+    identifyUser: vi.fn().mockResolvedValue({ id: "user-1", name: "User One" }),
+  }).instance;
+
+  expect(runtime.learning?.containerId).toBe(getLearningContainerId);
+});

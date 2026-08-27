@@ -19,13 +19,14 @@ export type CopilotRuntimeLearningContext =
       readonly deliveryId: string;
     };
 
+/** Chooses one developer-created Learning Container for an Intelligence run. */
+export type GetLearningContainerId = (
+  input: CopilotRuntimeLearningContext,
+) => MaybePromise<string | null | undefined>;
+
 /** Assigns each Intelligence Thread to one developer-created Learning Container. */
 export interface CopilotRuntimeLearningConfig {
-  readonly containerId:
-    | string
-    | ((
-        input: CopilotRuntimeLearningContext,
-      ) => MaybePromise<string | null | undefined>);
+  readonly containerId: string | GetLearningContainerId;
 }
 
 const STABLE_CONTAINER_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
