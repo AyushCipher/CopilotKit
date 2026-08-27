@@ -13,6 +13,11 @@ import type { Memory } from "@copilotkit/core";
 import type { AbstractAgent, AgentSubscriber } from "@ag-ui/client";
 import type { InspectorOpenSource } from "../lib/telemetry.js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  findInspectorCopyControl,
+  textContentIncludingJson,
+} from "../testing/inspector-elements.js";
+import { installClipboard } from "../testing/clipboard.js";
 
 // --- Types for accessing LitElement-private reactive properties ---
 // WebInspectorElement stores these as private Lit reactive properties.
@@ -48,7 +53,6 @@ type InspectorThreadViewInternals = {
 
 type InspectorContextInternals = {
   contextStore: Record<string, { description?: string; value: unknown }>;
-  copyContextValue: (value: unknown, id: string) => Promise<void>;
   persistState: () => void;
 };
 
@@ -440,7 +444,28 @@ describe("WebInspectorElement", () => {
     expect(ctxA.value).toMatchObject({ nested: true });
     expect(ctxB.description).toBe("Described");
 
-    await contextInternals.copyContextValue({ nested: true }, "ctxA");
+    inspector.openInspector("floating_button");
+    await inspector.updateComplete;
+    inspector.shadowRoot
+      ?.querySelector<HTMLButtonElement>(
+        '[data-inspector-menu-key="agent-context"]',
+      )
+      ?.click();
+    await inspector.updateComplete;
+    Array.from(
+      inspector.shadowRoot?.querySelectorAll<HTMLButtonElement>(
+        "#cpk-main-scroll > div button",
+      ) ?? [],
+    )
+      .find((button) => button.textContent?.includes("ctxA"))
+      ?.click();
+    await inspector.updateComplete;
+    findInspectorCopyControl(inspector.shadowRoot!, "Copy JSON")?.click();
+    await vi.waitFor(() =>
+      expect(mockClipboard.writeText).toHaveBeenCalledWith(
+        '{\n  "nested": true\n}',
+      ),
+    );
     expect(mockClipboard.writeText).toHaveBeenCalledTimes(1);
 
     contextInternals.persistState();
@@ -1006,7 +1031,7 @@ describe("CpkThreadInspector provider contract", () => {
     expect(internals._fetchedMetadata?.agentId).toBe("agent-a");
     expect(internals._fetchedEvents).toHaveLength(6);
 
-    const text = el.shadowRoot?.textContent ?? "";
+    const text = textContentIncludingJson(el.shadowRoot!);
     expect(text).toContain("Messages");
     expect(text).toContain("AG-UI Events");
     expect(text).toContain("State");
@@ -1185,7 +1210,7 @@ describe("CpkThreadInspector provider contract", () => {
       ?.click();
     await el.updateComplete;
 
-    const text = el.shadowRoot?.textContent ?? "";
+    const text = textContentIncludingJson(el.shadowRoot!);
     expect(text).toContain("Hide details");
     expect(text).toContain("top-level-run");
     expect(text).toContain("sequence");
@@ -1394,7 +1419,7 @@ describe("CpkThreadInspector provider contract", () => {
       ?.click();
     await el.updateComplete;
 
-    expect(el.shadowRoot?.textContent ?? "").toContain("checkpointId");
+    expect(textContentIncludingJson(el.shadowRoot!)).toContain("checkpointId");
   });
 
   it("collapses structured timeline event details by default", async () => {
@@ -1433,7 +1458,7 @@ describe("CpkThreadInspector provider contract", () => {
     await el.updateComplete;
 
     expect(el.shadowRoot?.textContent ?? "").toContain("Hide details");
-    expect(el.shadowRoot?.textContent ?? "").toContain(
+    expect(textContentIncludingJson(el.shadowRoot!)).toContain(
       "very chonky run-started payload",
     );
   });
@@ -1466,7 +1491,9 @@ describe("CpkThreadInspector provider contract", () => {
     await el.updateComplete;
 
     expect(el.shadowRoot?.textContent ?? "").toContain("Hide details");
-    expect(el.shadowRoot?.textContent ?? "").toContain("ERR_TOOL_TIMEOUT");
+    expect(textContentIncludingJson(el.shadowRoot!)).toContain(
+      "ERR_TOOL_TIMEOUT",
+    );
   });
 
   it("keeps the first-visible timeline intentional while provider message fallback is loading", async () => {
@@ -1758,6 +1785,26 @@ describe("WebInspectorElement open + What's new telemetry", () => {
     link.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(eventsNamed("oss.inspector.whats_new_clicked")).toHaveLength(1);
+  });
+
+  it("copies announcement code through the shared copy control", async () => {
+    const code = `const message = '<safe & exact>';`;
+    body = `\`\`\`ts\n${code}\n\`\`\``;
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const restoreClipboard = installClipboard({ writeText });
+
+    try {
+      const { inspector, internals } = mount();
+      await internals.fetchAnnouncement();
+      await openWhatsNew(inspector);
+
+      const copy = findInspectorCopyControl(inspector.shadowRoot!, "Copy code");
+      expect(copy).not.toBeNull();
+      copy?.click();
+      await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(code));
+    } finally {
+      restoreClipboard();
+    }
   });
 
   it("does not expose notification telemetry before a disabling handshake", async () => {
