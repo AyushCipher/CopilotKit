@@ -18,6 +18,7 @@ import {
   textContentIncludingJson,
 } from "../testing/inspector-elements.js";
 import { installClipboard } from "../testing/clipboard.js";
+import type { ThreadsState } from "../domains/threads/state.js";
 
 // --- Types for accessing LitElement-private reactive properties ---
 // WebInspectorElement stores these as private Lit reactive properties.
@@ -33,22 +34,7 @@ type InspectorInternals = {
 type InspectorThreadViewInternals = {
   isOpen: boolean;
   selectedMenu: "ag-ui-events" | "threads";
-  selectedThreadId: string | null;
-  _threads: Array<{
-    id: string;
-    name?: string | null;
-    agentId: string;
-    updatedAt?: string | null;
-  }>;
-  _threadsByAgent: Map<
-    string,
-    Array<{
-      id: string;
-      name?: string | null;
-      agentId: string;
-      updatedAt?: string | null;
-    }>
-  >;
+  threads: ThreadsState;
 };
 
 type InspectorContextInternals = {
@@ -415,17 +401,17 @@ describe("WebInspectorElement", () => {
       isOpen: boolean;
       selectedMenu: string;
       selectedContext: string;
-      selectedThreadId: string | null;
-      focusedThreadMessageId: string | null;
-      threadFocusRequestId: number;
+      threads: ThreadsState;
     };
 
     expect(focusInternals.isOpen).toBe(true);
     expect(focusInternals.selectedMenu).toBe("threads");
     expect(focusInternals.selectedContext).toBe("alpha");
-    expect(focusInternals.selectedThreadId).toBe("thread-1");
-    expect(focusInternals.focusedThreadMessageId).toBe("assistant-message-1");
-    expect(focusInternals.threadFocusRequestId).toBe(1);
+    expect(focusInternals.threads.selectedThreadId).toBe("thread-1");
+    expect(focusInternals.threads.focusedThreadMessageId).toBe(
+      "assistant-message-1",
+    );
+    expect(focusInternals.threads.threadFocusRequestId).toBe(1);
   });
 
   it("normalizes context, persists state, and copies context values", async () => {
@@ -2286,12 +2272,16 @@ describe("WebInspectorElement owned thread store headers (#5581)", () => {
     const internals = inspector as unknown as InspectorThreadViewInternals;
     internals.isOpen = true;
     internals.selectedMenu = "threads";
-    internals.selectedThreadId = "thread-1";
-    internals._threads = [
+    internals.threads.selectedThreadId = "thread-1";
+    internals.threads.threads = [
       {
         id: "thread-1",
         name: "Thread 1",
         agentId: "alpha",
+        organizationId: "organization",
+        createdById: "user",
+        archived: false,
+        createdAt: "2026-06-25T09:00:00.000Z",
         updatedAt: "2026-06-25T10:00:00.000Z",
       },
     ];
@@ -2527,7 +2517,8 @@ describe("WebInspectorElement owned thread store headers (#5581)", () => {
       inspector.shadowRoot?.querySelector("cpk-thread-details"),
     ).toBeNull();
     expect(
-      (inspector as unknown as InspectorThreadViewInternals).selectedThreadId,
+      (inspector as unknown as InspectorThreadViewInternals).threads
+        .selectedThreadId,
     ).toBeNull();
 
     const engineer = inspector.shadowRoot?.querySelector<HTMLAnchorElement>(
@@ -2550,15 +2541,21 @@ describe("WebInspectorElement owned thread store headers (#5581)", () => {
     const internals = inspector as unknown as InspectorThreadViewInternals;
     internals.isOpen = true;
     internals.selectedMenu = "threads";
-    internals._threads = [
+    internals.threads.threads = [
       {
         id: "real-thread",
         name: "Real customer thread",
         agentId: "alpha",
+        organizationId: "organization",
+        createdById: "user",
+        archived: false,
+        createdAt: "2026-06-25T09:00:00.000Z",
         updatedAt: "2026-06-25T10:00:00.000Z",
       },
     ];
-    internals._threadsByAgent = new Map([["alpha", internals._threads]]);
+    internals.threads.threadsByAgent = new Map([
+      ["alpha", internals.threads.threads],
+    ]);
     inspector.requestUpdate();
     await inspector.updateComplete;
 
@@ -2581,7 +2578,7 @@ describe("WebInspectorElement owned thread store headers (#5581)", () => {
       isOpen: boolean;
       selectedMenu: "home" | "threads";
       handleMenuSelect: (key: "threads") => void;
-      selectedThreadId: string | null;
+      threads: ThreadsState;
     };
     internals.isOpen = true;
     internals.selectedMenu = "threads";
@@ -2601,7 +2598,7 @@ describe("WebInspectorElement owned thread store headers (#5581)", () => {
     firstRow!.click();
     await inspector.updateComplete;
     await vi.waitFor(() => {
-      expect(internals.selectedThreadId).toBe("example-realtime-sync");
+      expect(internals.threads.selectedThreadId).toBe("example-realtime-sync");
       expect(
         inspector.shadowRoot?.querySelector("cpk-thread-details"),
       ).not.toBe(null);
@@ -2614,7 +2611,7 @@ describe("WebInspectorElement owned thread store headers (#5581)", () => {
     await inspector.updateComplete;
 
     await vi.waitFor(() => {
-      expect(internals.selectedThreadId).toBeNull();
+      expect(internals.threads.selectedThreadId).toBeNull();
       expect(
         inspector.shadowRoot?.querySelector("cpk-thread-details"),
       ).toBeNull();
