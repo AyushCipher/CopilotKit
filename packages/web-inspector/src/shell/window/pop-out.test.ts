@@ -8,7 +8,7 @@ import {
   copyStyleSheets,
   ensureBrandFont,
   openPopOutWindow,
-} from "../pop-out.js";
+} from "./pop-out.js";
 
 const BRAND_FONT_LINK_ID = "cpk-inspector-brand-fonts";
 const BRAND_FONT_HREF =

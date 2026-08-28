@@ -1264,6 +1264,61 @@ test("docked sidebar automatically uses an icon rail and keeps accessible names"
   }
 });
 
+test("reconnecting an open docked inspector restores the host offset", async () => {
+  const context = await setup({
+    persistedState: JSON.stringify({
+      isOpen: true,
+      dockMode: "docked-left",
+      hasOpenedInspector: true,
+      selectedMenu: "home",
+      window: { size: { width: 720, height: 700 } },
+    }),
+  });
+  try {
+    await context.inspector.updateComplete;
+    expect(document.body.style.marginLeft).toBe("720px");
+
+    context.inspector.remove();
+    expect(document.body.style.marginLeft).toBe("0px");
+    document.body.append(context.inspector);
+    await context.inspector.updateComplete;
+
+    expect(document.body.style.marginLeft).toBe("720px");
+    expect(document.documentElement.style.overflowX).toBe("hidden");
+  } finally {
+    context.teardown();
+  }
+});
+
+test("the layout chooser is a disclosure with ordinary buttons", async () => {
+  const context = await setup();
+  try {
+    await context.open();
+    const root = requireElement(
+      context.inspector.shadowRoot,
+      "Web Inspector shadow root was not rendered",
+    );
+    const trigger = requireElement(
+      root.querySelector<HTMLButtonElement>("[data-inspector-layout-trigger]"),
+      "Layout trigger was not rendered",
+    );
+    trigger.click();
+    await context.inspector.updateComplete;
+
+    const chooser = requireElement(
+      root.querySelector<HTMLElement>("#cpk-inspector-layout-options"),
+      "Layout chooser was not rendered",
+    );
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(trigger.hasAttribute("aria-haspopup")).toBe(false);
+    expect(chooser.getAttribute("role")).toBeNull();
+    expect(chooser.querySelectorAll('[role="menuitem"]')).toHaveLength(0);
+    expect(chooser.querySelectorAll('button[type="button"]')).toHaveLength(2);
+  } finally {
+    context.teardown();
+  }
+});
+
 test("Home leads with an unread update preview that clears after opening What's New", async () => {
   const announcement = {
     timestamp: "2026-08-20T00:00:00.000Z",

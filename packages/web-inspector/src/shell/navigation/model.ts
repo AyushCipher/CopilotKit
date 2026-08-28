@@ -1,4 +1,4 @@
-import type { InspectorLeafKey } from "./telemetry.js";
+import type { InspectorLeafKey } from "../../shared/telemetry/privacy.js";
 
 export type ShellGroupKey = "home" | "workbench" | "inspect";
 

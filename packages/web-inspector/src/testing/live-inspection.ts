@@ -1,6 +1,6 @@
 import type { CopilotKitCore } from "@copilotkit/core";
-import { WebInspectorElement } from "../../index.js";
-import { requireElement } from "./test-helpers.js";
+import { WebInspectorElement } from "../index.js";
+import { requireElement } from "./lit.js";
 
 export async function mountLiveInspector(core: CopilotKitCore) {
   const inspector = new WebInspectorElement();

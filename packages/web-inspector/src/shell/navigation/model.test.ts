@@ -4,7 +4,7 @@ import {
   getGroupForMenu,
   isInspectorMenuKey,
   shouldUseIconRail,
-} from "../inspector-nav.js";
+} from "./model.js";
 
 describe("inspector-nav", () => {
   it("accepts live leaf keys and rejects unknown panes", () => {

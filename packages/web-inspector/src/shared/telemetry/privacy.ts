@@ -1,92 +1,18 @@
-// Inspector-side anonymous telemetry. V1 events fire from index.ts for
-// What's new and thread-inspection interactions. POSTs directly from the
-// browser to the CopilotKit telemetry sink at
-// `telemetry.copilotkit.ai/ingest`, where a Lambda fan-out forwards events to
-// PostHog / Reo / Scarf.
-//
-// The endpoint URL is intentionally clearly named so it's obvious in
-// DevTools / Network tab — transparency for opt-in users.
-//
-// Privacy invariants enforced here:
-//   - We never send message content, agent state, prompts, completions,
-//     or announcement markdown. Feature-specific properties are scoped to
-//     event metadata only (banner_id/timestamp, cta location). Reviewers
-//     should grep call sites for any unintended payload.
-//   - The opt-out short-circuits before any network call. There is no
-//     buffer, no retry queue.
-//   - All errors are swallowed; telemetry must never break the host app.
-
 import {
   getOrCreateTelemetryDistinctId,
   hasTelemetryDisclosureBeenShown,
   isTelemetryOptedOut,
   markTelemetryDisclosureShown,
-} from "./persistence.js";
-import packageJson from "../../package.json" with { type: "json" };
+} from "../persistence/telemetry.js";
+import { TELEMETRY_EVENTS, track } from "./transport.js";
 
-// V1 funnel events. Namespaced `oss.inspector.*` so the lambda's
-// owned-prefix gate (oss-path-to-production) can accept them server-side
-// without a per-event sink deploy.
-export const TELEMETRY_EVENTS = {
-  opened: "oss.inspector.opened",
-  whatsNewViewed: "oss.inspector.whats_new_viewed",
-  whatsNewSignalViewed: "oss.inspector.whats_new_signal_viewed",
-  errorSignalViewed: "oss.inspector.error_signal_viewed",
-  whatsNewClicked: "oss.inspector.whats_new_clicked",
-  threadsTabClicked: "oss.inspector.threads_tab_clicked",
-  threadsTryFromHereClicked: "oss.inspector.threads_try_from_here_clicked",
-  threadsLockedViewed: "oss.inspector.threads_locked_viewed",
-  threadsIntelligenceSignupClicked:
-    "oss.inspector.threads_intelligence_signup_clicked",
-  threadsTalkToEngineerClicked:
-    "oss.inspector.threads_talk_to_engineer_clicked",
-  talkToEngineerClicked: "oss.inspector.talk_to_engineer_clicked",
-  threadsEmptyEnabledViewed: "oss.inspector.threads_empty_enabled_viewed",
-  threadsEnabledViewed: "oss.inspector.threads_enabled_viewed",
-  threadsExampleViewed: "oss.inspector.threads_example_viewed",
-  threadsExampleSelected: "oss.inspector.threads_example_selected",
-  threadsExampleTourStarted: "oss.inspector.threads_example_tour_started",
-  threadsExampleTourStepViewed:
-    "oss.inspector.threads_example_tour_step_viewed",
-  threadsExampleTourDismissed: "oss.inspector.threads_example_tour_dismissed",
-  threadsExampleTourCompleted: "oss.inspector.threads_example_tour_completed",
-  threadsExampleTourReopened: "oss.inspector.threads_example_tour_reopened",
-  memoriesTabClicked: "oss.inspector.memories_tab_clicked",
-  homeViewed: "oss.inspector.home_viewed",
-  homeCtaClicked: "oss.inspector.home_cta_clicked",
-  // Carries the CLI's own `onboarding_run_id`, which is the whole point: it is
-  // the first event that can be joined to `cli.onboarding.completed` on the
-  // Intelligence side. `home_cta_clicked` only ever proved someone clicked a
-  // link, never that an install followed.
-  homePromptCopied: "oss.inspector.home_prompt_copied",
-  // Which step of the Intelligence story a developer opened by hand. Carries
-  // the beat as a property rather than splitting into one event per label,
-  // because the labels are expected to change as the story is iterated and a
-  // per-label event would retire with them.
-  homeStoryBeatSelected: "oss.inspector.home_story_beat_selected",
-  metadataModuleViewed: "oss.inspector.metadata_module_viewed",
-  metadataActionClicked: "oss.inspector.metadata_action_clicked",
-} as const;
-
-export type TelemetryEvent =
-  (typeof TELEMETRY_EVENTS)[keyof typeof TELEMETRY_EVENTS];
-
-// Per the OSS-96 ticket — the URL is intentionally clearly named for
-// transparency in the network tab.
-export const TELEMETRY_INGEST_URL = "https://telemetry.copilotkit.ai/ingest";
+const PACKAGE_NAME = "@copilotkit/web-inspector";
 
 // Surfaced in console disclosure and the in-product opt-out panel.
 // Keep in sync with the live shell-docs telemetry page
 // (`showcase/shell-docs/src/content/docs/integrations/built-in-agent/telemetry.mdx`).
 // Mirror constant: packages/runtime/src/v1-deprecated/lib/telemetry-disclosure.ts
 export const TELEMETRY_DOCS_URL = "https://docs.copilotkit.ai/telemetry";
-
-const PACKAGE_NAME = "@copilotkit/web-inspector";
-const PACKAGE_VERSION = packageJson.version;
-
-// 3-second cap so a slow gateway can't hang the host app. Matches the
-// runtime's existing scarf-client convention.
-const FETCH_TIMEOUT_MS = 3000;
 
 export type RuntimeUrlType =
   | "missing"
@@ -124,45 +50,6 @@ export function getRuntimeUrlType(
     return url.origin === baseUrl.origin ? "same_origin" : "remote";
   } catch {
     return "invalid";
-  }
-}
-
-/**
- * Fire-and-forget telemetry send. Returns synchronously; the network
- * call is dispatched in the background and any failure is swallowed.
- *
- * Short-circuits when the user has opted out. Does NOT itself trigger
- * the first-run disclosure — call `maybeShowDisclosure()` from the
- * inspector's mount lifecycle instead.
- */
-export function track(
-  event: TelemetryEvent,
-  properties: Record<string, unknown> = {},
-): void {
-  if (isTelemetryOptedOut()) return;
-
-  try {
-    const distinctId = getOrCreateTelemetryDistinctId();
-    // Every event carries package identity and the inspector's anonymous
-    // distinct-ID, so any of them can be segmented by inspector version.
-    const body = JSON.stringify({
-      event,
-      properties: {
-        ...properties,
-        package_name: PACKAGE_NAME,
-        package_version: PACKAGE_VERSION,
-        inspector_distinct_id: distinctId,
-        distinct_id: distinctId,
-      },
-      package: {
-        name: PACKAGE_NAME,
-        version: PACKAGE_VERSION,
-      },
-      ts: Math.floor(Date.now() / 1000),
-    });
-    void postBestEffort(TELEMETRY_INGEST_URL, body, distinctId);
-  } catch {
-    // Identity and serialization failures are best-effort too.
   }
 }
 
@@ -376,7 +263,6 @@ export type InspectorThreadTelemetryProps = Readonly<{
   tour_step?: ExampleTourStep;
   tour_tab?: ExampleTourTab;
   dismiss_method?: "skip" | "done";
-  outcome?: "success" | "failure";
 }>;
 
 /** Rebuild the common Thread payload from its closed coarse allowlist. */
@@ -461,15 +347,6 @@ export function trackThreadsTabClicked(
   props: InspectorThreadTelemetryProps = {},
 ): void {
   track(TELEMETRY_EVENTS.threadsTabClicked, threadCommonProperties(props));
-}
-
-export function trackThreadsTryFromHereClicked(
-  props: InspectorThreadTelemetryProps,
-): void {
-  track(TELEMETRY_EVENTS.threadsTryFromHereClicked, {
-    ...threadCommonProperties(props),
-    ...(props.outcome === undefined ? {} : { outcome: props.outcome }),
-  });
 }
 
 export function trackThreadsLockedViewed(
@@ -797,30 +674,3 @@ export function maybeShowDisclosure(): void {
 }
 
 export { isTelemetryOptedOut };
-
-async function postBestEffort(
-  url: string,
-  body: string,
-  distinctId: string,
-): Promise<void> {
-  if (typeof fetch === "undefined") return;
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const controller = new AbortController();
-    timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CopilotKit-Telemetry-Id": distinctId,
-      },
-      body,
-      signal: controller.signal,
-      // No credentials / no Authorization header — anonymous endpoint.
-    });
-  } catch {
-    // Silent failure — telemetry must not break the application.
-  } finally {
-    if (timeoutId !== undefined) clearTimeout(timeoutId);
-  }
-}

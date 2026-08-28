@@ -1,14 +1,14 @@
 import { expect, test, vi } from "vitest";
 
 import {
-  TELEMETRY_EVENTS,
   trackMetadataActionClicked,
   trackMetadataModuleViewed,
-} from "../telemetry.js";
+} from "./privacy.js";
+import { TELEMETRY_EVENTS } from "./transport.js";
 import {
   _resetTelemetryPersistenceForTesting,
   setTelemetryOptOut,
-} from "../persistence.js";
+} from "../persistence/telemetry.js";
 
 type TelemetryBody = {
   event: string;

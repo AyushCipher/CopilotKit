@@ -1,4 +1,7 @@
-import { trackHomeCtaClicked, trackHomeViewed } from "../../lib/telemetry.js";
+import {
+  trackHomeCtaClicked,
+  trackHomeViewed,
+} from "../../shared/telemetry/privacy.js";
 import type { HomeHeroAction } from "./model.js";
 
 export function trackHomeView(telemetryDisabled: boolean): void {
