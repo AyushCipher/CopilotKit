@@ -1,6 +1,5 @@
 import { LitElement, css, html, nothing, render, unsafeCSS } from "lit";
 import type { TemplateResult } from "lit";
-import { marked } from "marked";
 import { styleMap } from "lit/directives/style-map.js";
 import tailwindStyles from "./styles/generated.css";
 import inspectorLogoUrl from "./assets/inspector-logo.svg";
@@ -37,12 +36,7 @@ import {
   clampSize as clampSizeToViewport,
 } from "./lib/context-helpers.js";
 import {
-  clearLegacyAnnouncementReadState,
-  loadAnnouncementPulsedTimestamp,
-  loadAnnouncementReadTimestamp,
   loadInspectorState,
-  saveAnnouncementPulsedTimestamp,
-  saveAnnouncementReadTimestamp,
   saveInspectorState,
   isValidAnchor,
   isValidPosition,
@@ -56,20 +50,34 @@ import {
   openPopOutWindow,
 } from "./lib/pop-out.js";
 import type { PopOutHandle } from "./lib/pop-out.js";
-import { projectInspectorMetadata } from "./lib/inspector-metadata.js";
 import type {
   InspectorMetadataAction,
   InspectorMetadataProjection,
-} from "./lib/inspector-metadata.js";
+} from "./domains/home/model.js";
 import {
   buildHomeModel,
+  projectInspectorMetadata,
   runtimeConnectionNeedsAttention,
-} from "./lib/home-briefing.js";
-import type {
-  HomeHeroAction,
-  HomeModel,
-  HomeRuntimeHealthTone,
-} from "./lib/home-briefing.js";
+} from "./domains/home/model.js";
+import type { HomeHeroAction, HomeModel } from "./domains/home/model.js";
+import { renderHomeView as renderHomeDomainView } from "./domains/home/view.js";
+import { homeViewStyles } from "./domains/home/view.styles.js";
+import { trackHomeAction, trackHomeView } from "./domains/home/telemetry.js";
+import {
+  clearLegacyAnnouncementReadState,
+  loadAnnouncementFeed,
+  saveAnnouncementPulsedTimestamp,
+  saveAnnouncementReadTimestamp,
+} from "./domains/announcements/feed.js";
+import type { AnnouncementReady } from "./domains/announcements/feed.js";
+import {
+  announcementLinkFromClick,
+  renderAnnouncementPreview,
+  renderAnnouncementsView,
+  synchronizeAnnouncementCopyControls,
+} from "./domains/announcements/view.js";
+import { announcementViewStyles } from "./domains/announcements/view.styles.js";
+import { AnnouncementTelemetry } from "./domains/announcements/telemetry.js";
 import {
   INSPECTOR_GROUPS,
   INSPECTOR_NAV_SECTIONS,
@@ -85,10 +93,13 @@ import {
   getTelemetryDistinctIdForUrl,
   maybeShowDisclosure,
   trackErrorSignalViewed,
+<<<<<<< HEAD
   trackHomeCtaClicked,
   trackHomePromptCopied,
   trackHomeStoryBeatSelected,
   trackHomeViewed,
+=======
+>>>>>>> 11b30aaa8e (refactor(web-inspector): isolate Home and announcement domains)
   trackInspectorOpened,
   trackMetadataActionClicked,
   trackMetadataModuleViewed,
@@ -106,9 +117,6 @@ import {
   trackThreadsLockedViewed,
   trackThreadsTabClicked,
   trackThreadsTalkToEngineerClicked,
-  trackWhatsNewClicked,
-  trackWhatsNewSignalViewed,
-  trackWhatsNewViewed,
 } from "./lib/telemetry.js";
 import {
   createOnboardingPrompt,
@@ -322,8 +330,6 @@ import type {
   InspectorThreadTelemetryProps,
   ThreadsExpiryBucket,
   ThreadsUsageBucket,
-  WhatsNewSignalPresentation,
-  WhatsNewSurface,
 } from "./lib/telemetry.js";
 
 export type { Anchor } from "./lib/types.js";
@@ -356,7 +362,7 @@ export const THREAD_INSPECTOR_TAG = "cpk-thread-inspector" as const;
  * for persistence and telemetry stability, following the `memories`/"Memory"
  * precedent above.
  */
-const WHATS_NEW_VIEW_LABEL = "What's new";
+const WHATS_NEW_VIEW_LABEL = "What's New";
 
 /** Menu key of the What's new leaf — the news signal's destination. */
 const WHATS_NEW_MENU_KEY = "whats-new";
@@ -770,7 +776,6 @@ const MIN_WINDOW_WIDTH = 880;
 const MIN_WINDOW_WIDTH_DOCKED_LEFT = 640;
 const MIN_WINDOW_HEIGHT = 480;
 const INSPECTOR_STORAGE_KEY = "cpk:inspector:state";
-const ANNOUNCEMENT_URL = "https://cdn.copilotkit.ai/announcements.json";
 // The launcher keeps its current touch target on compact screens and grows to
 // an exactly 20% larger desktop cap. `box-sizing` makes these OUTER sizes.
 const LAUNCHER_MIN_SIZE = 51.84;
@@ -785,7 +790,6 @@ const INTERACTIVE_FOCUS_BASE_STYLE =
   "outline-style:solid;outline-width:2px;outline-color:transparent;outline-offset:2px;cursor:pointer;";
 // Cap on banner impressions held while waiting for the runtime handshake, so a
 // runtime that never connects can't accumulate an unbounded queue.
-const MAX_PENDING_BANNER_VIEWED = 20;
 const INTELLIGENCE_SIGNUP_URL = "https://intelligence.copilotkit.ai";
 const TALK_TO_ENGINEER_URL = "https://www.copilotkit.ai/talk-to-an-engineer";
 // Label for the Capabilities tab (client-authoritative dev experimentation
@@ -961,10 +965,6 @@ const INTELLIGENCE_STORY_CHAIN = [
 ] as const;
 
 type SanitizedValue = DisplayValue;
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 
 function coerceJsonValue(value: unknown): unknown {
   if (typeof value !== "string") {
@@ -1302,19 +1302,10 @@ export class WebInspectorElement extends LitElement {
     this.live.eventColumnResize = value;
   }
 
-  private announcementHtml: string | null = null;
-  private announcementMarkdown: string | null = null;
-  private announcementTimestamp: string | null = null;
-  private announcementPreviewText: string | null = null;
-  // Forward-compat for an optional `cta_label` field on the announcement
-  // CDN payload (e.g. "Try threads", "New feature"). The current schema
-  // ({timestamp, previewText, announcement}) doesn't carry it, so this is
-  // null in production today; we read it defensively in fetchAnnouncement
-  // so a future CDN-side schema bump lights up `cta_label` on
-  // whats_new_clicked without an inspector release.
-  private announcementCtaLabel: string | null = null;
+  private announcement: AnnouncementReady | null = null;
   private announcementLoaded = false;
   private announcementPromise: Promise<void> | null = null;
+  private readonly announcementTelemetry = new AnnouncementTelemetry();
   private newsSignalArmed = false;
   /** Which signal's beat is in flight, or null between beats. */
   private pulsingSignal: LauncherSignalKey | null = null;
@@ -1392,37 +1383,6 @@ export class WebInspectorElement extends LitElement {
    * the reader actually got. Reset with `errorBeatSpent`.
    */
   private pillOutcome: LauncherPillOutcome | null = null;
-  private viewedNewsSignalIds: Set<string> = new Set();
-  private pendingNewsSignalViewed: {
-    banner_id: string;
-    surface: "launcher";
-    presentation: WhatsNewSignalPresentation;
-    cta_label?: string;
-  } | null = null;
-  // Per-instance dedup for `oss.inspector.whats_new_viewed`, keyed by
-  // `${timestamp}:${surface}` so the event fires at most once per
-  // announcement per surface per inspector mount. Plan calls for "de-dup per
-  // timestamp per session"; instance-scoping is closer to per-mount than
-  // per-tab (sessionStorage), but for the inspector the distinction is
-  // academic — inspector instances rarely outlive the page. The surface stays
-  // part of the key so a second announcement surface would get its own
-  // impression rather than being swallowed by the first one's.
-  private viewedBannerSurfaces: Set<string> = new Set();
-  // Impressions wait for the runtime handshake before going out: the runtime's
-  // opt-out arrives in the /info response, and `telemetryDisabled` reads `false`
-  // until then, so sending directly would post on a placeholder. This deferral
-  // predates the surface split — preserved here, widened from a single slot to a
-  // queue because opening the panel reveals the second surface and can happen
-  // before the first impression has flushed.
-  private pendingBannerViewed: Array<{
-    banner_id: string;
-    surface: WhatsNewSurface;
-    cta_label?: string;
-  }> = [];
-  // Per-instance dedup for `oss.inspector.whats_new_clicked` (keyed by
-  // `${bannerId}:${cta}`) so copy-button retries and accidental multi-clicks
-  // don't inflate funnel counts beyond one signal per intent type per banner.
-  private clickedBannerIds: Set<string> = new Set();
 
   get core(): CopilotKitCore | null {
     return this._core;
@@ -1494,11 +1454,6 @@ export class WebInspectorElement extends LitElement {
     const hasCapabilities = hasCatalog;
     return [
       { key: "home", label: "Home", icon: "Home" as LucideIconName },
-      {
-        key: "whats-new",
-        label: "What's New",
-        icon: "Megaphone" as LucideIconName,
-      },
       {
         key: WHATS_NEW_MENU_KEY,
         label: WHATS_NEW_VIEW_LABEL,
@@ -1947,7 +1902,7 @@ export class WebInspectorElement extends LitElement {
             ensureTelemetryDistinctId();
             maybeShowDisclosure();
           }
-          this.flushPendingWhatsNewTelemetry();
+          this.flushAnnouncementTelemetry();
           if (
             threadCapabilityWasEnabled &&
             this.areThreadEndpointsAvailable()
@@ -2039,7 +1994,7 @@ export class WebInspectorElement extends LitElement {
         ensureTelemetryDistinctId();
         maybeShowDisclosure();
       }
-      this.flushPendingWhatsNewTelemetry();
+      this.flushAnnouncementTelemetry();
     }
 
     // Subscribe to any already-registered thread stores. `getThreadStores` was
@@ -2410,7 +2365,9 @@ export class WebInspectorElement extends LitElement {
               </div>
               ${
                 isFailedCall && toolError?.message
-                  ? html`<p class="mt-2 break-words leading-relaxed text-gray-800">
+                  ? html`<p
+                    class="mt-2 break-words leading-relaxed text-gray-800"
+                  >
                     ${toolError.message}
                   </p>`
                   : nothing
@@ -2480,6 +2437,8 @@ export class WebInspectorElement extends LitElement {
 
   static styles = [
     unsafeCSS(tailwindStyles),
+    homeViewStyles,
+    announcementViewStyles,
     learningViewStyles,
     playgroundViewStyles,
     threadsViewStyles,
@@ -2801,186 +2760,6 @@ export class WebInspectorElement extends LitElement {
       /* Events table column headers */
       table thead th {
         font-weight: 600 !important;
-      }
-
-      .announcement-content {
-        color: #1f2230;
-        font-size: 13px;
-        font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-        line-height: 1.55;
-      }
-
-      .announcement-content h1,
-      .announcement-content h2,
-      .announcement-content h3 {
-        color: #010507;
-        font-weight: 700;
-        line-height: 1.3;
-        margin: 0.9rem 0 0.4rem;
-      }
-      .announcement-content > h1:first-child,
-      .announcement-content > h2:first-child,
-      .announcement-content > h3:first-child {
-        margin-top: 0;
-      }
-
-      .announcement-content h1 {
-        font-size: 1.15rem;
-        letter-spacing: -0.01em;
-      }
-      .announcement-content h2 {
-        font-size: 1rem;
-      }
-      .announcement-content h3 {
-        font-size: 0.9rem;
-        text-transform: none;
-      }
-
-      .announcement-content p {
-        margin: 0.45rem 0;
-      }
-
-      .announcement-content strong {
-        color: #010507;
-        font-weight: 700;
-      }
-
-      .announcement-content ul {
-        list-style: disc;
-        padding-left: 1.25rem;
-        margin: 0.45rem 0;
-      }
-
-      .announcement-content ol {
-        list-style: decimal;
-        padding-left: 1.25rem;
-        margin: 0.45rem 0;
-      }
-
-      .announcement-content li + li {
-        margin-top: 0.15rem;
-      }
-
-      .announcement-content a {
-        color: #5558b2;
-        text-decoration: underline;
-      }
-
-      .announcement-content :not(pre) > code {
-        background: #f3f3f7;
-        border: 1px solid #e4e4ec;
-        border-radius: 5px;
-        padding: 1px 5px;
-        font-size: 0.85em;
-        color: #4a3a8a;
-      }
-
-      .announcement-code {
-        position: relative;
-        margin: 0.6rem 0;
-      }
-
-      .announcement-code pre {
-        background: #0f1117;
-        color: #e6e8f2;
-        border-radius: 10px;
-        padding: 10px 12px;
-        overflow-x: auto;
-        font-size: 12px;
-        line-height: 1.5;
-        white-space: pre;
-      }
-
-      .announcement-code pre code::after {
-        content: "";
-        display: inline-block;
-        width: 80px;
-      }
-
-      .announcement-code__copy-shield {
-        position: absolute;
-        top: 4px;
-        right: 4px;
-        padding: 4px 4px 4px 24px;
-        border-top-right-radius: 10px;
-        background: linear-gradient(
-          to right,
-          rgba(15, 17, 23, 0) 0%,
-          rgba(15, 17, 23, 0.95) 40%,
-          #0f1117 100%
-        );
-        pointer-events: none;
-      }
-
-      .announcement-code pre code {
-        background: transparent;
-        border: none;
-        padding: 0;
-        color: inherit;
-        font-size: inherit;
-      }
-
-      .announcement-code pre::-webkit-scrollbar {
-        height: 6px;
-      }
-      .announcement-code pre::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      .announcement-code pre::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 4px;
-      }
-
-      .announcement-code__copy {
-        position: relative;
-        pointer-events: auto;
-        --cpk-copy-padding: 3px 8px;
-        --cpk-copy-font-size: 0.6875rem;
-        --cpk-copy-color: #e6e8f2;
-        --cpk-copy-background: #1f222d;
-        --cpk-copy-border: rgba(255, 255, 255, 0.15);
-        --cpk-copy-hover-background: #2a2e3c;
-        --cpk-copy-hover-color: #ffffff;
-        --cpk-copy-success-background: #eee6fe;
-        --cpk-copy-success-color: #6430ab;
-        --cpk-copy-success-border: transparent;
-      }
-
-      /* ── What's new ──────────────────────────────────────────────── */
-      .whats-new {
-        display: block;
-        padding: 16px;
-      }
-
-      .whats-new__heading {
-        margin: 0 0 10px;
-        color: #010507;
-        font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-        font-size: 15px;
-        font-weight: 700;
-        line-height: 1.35;
-        letter-spacing: -0.01em;
-      }
-
-      .whats-new__status {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: #57575b;
-        font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-        font-size: 13px;
-      }
-
-      .whats-new__status-icon {
-        display: inline-flex;
-        flex: none;
-        align-items: center;
-        justify-content: center;
-        width: 24px;
-        height: 24px;
-        border-radius: 6px;
-        background: #eee6fe;
-        color: #5558b2;
       }
 
       /* ── Brand typography ────────────────────────────────────────── */
@@ -3495,8 +3274,10 @@ export class WebInspectorElement extends LitElement {
       }
 
       .cpk-launcher-hud[data-color-scheme="light"] .cpk-launcher-hud__row:hover,
-      .cpk-launcher-hud[data-color-scheme="light"] .cpk-launcher-hud__row:focus-within,
-      .cpk-launcher-hud[data-color-scheme="light"] .cpk-launcher-hud__row[data-cpk-hud-help="open"] {
+      .cpk-launcher-hud[data-color-scheme="light"]
+        .cpk-launcher-hud__row:focus-within,
+      .cpk-launcher-hud[data-color-scheme="light"]
+        .cpk-launcher-hud__row[data-cpk-hud-help="open"] {
         background: #f0f0f4;
       }
 
@@ -3600,7 +3381,8 @@ export class WebInspectorElement extends LitElement {
 
       .cpk-launcher-hud__row:hover .cpk-launcher-hud__detail,
       .cpk-launcher-hud__row:focus-within .cpk-launcher-hud__detail,
-      .cpk-launcher-hud__row[data-cpk-hud-help="open"] .cpk-launcher-hud__detail {
+      .cpk-launcher-hud__row[data-cpk-hud-help="open"]
+        .cpk-launcher-hud__detail {
         max-height: 72px;
         padding: 0 8px 7px;
         opacity: 1;
@@ -3675,8 +3457,7 @@ export class WebInspectorElement extends LitElement {
       }
 
       .cpk-launcher-hud[data-cpk-hud-intro="true"] {
-        animation: cpk-launcher-hud-intro
-          var(--cpk-launcher-hud-intro-duration)
+        animation: cpk-launcher-hud-intro var(--cpk-launcher-hud-intro-duration)
           cubic-bezier(0.16, 1, 0.3, 1) both;
       }
 
@@ -3684,16 +3465,14 @@ export class WebInspectorElement extends LitElement {
         animation-name: cpk-launcher-hud-intro-right;
       }
 
-      .cpk-launcher-hud[data-cpk-hud-intro="true"]
-        .cpk-launcher-hud__row {
+      .cpk-launcher-hud[data-cpk-hud-intro="true"] .cpk-launcher-hud__row {
         animation: cpk-launcher-hud-row-online
-          var(--cpk-launcher-hud-row-duration)
-          cubic-bezier(0.16, 1, 0.3, 1) both;
+          var(--cpk-launcher-hud-row-duration) cubic-bezier(0.16, 1, 0.3, 1)
+          both;
         animation-delay: var(--cpk-hud-row-delay);
       }
 
-      .cpk-launcher-hud[data-cpk-hud-intro="true"]
-        .cpk-launcher-hud__check {
+      .cpk-launcher-hud[data-cpk-hud-intro="true"] .cpk-launcher-hud__check {
         animation: cpk-launcher-hud-check-online 220ms
           cubic-bezier(0.16, 1, 0.3, 1) both;
         animation-delay: calc(var(--cpk-hud-row-delay) + 90ms);
@@ -3701,10 +3480,8 @@ export class WebInspectorElement extends LitElement {
 
       @media (prefers-reduced-motion: reduce) {
         .cpk-launcher-hud[data-cpk-hud-intro="true"],
-        .cpk-launcher-hud[data-cpk-hud-intro="true"]
-          .cpk-launcher-hud__row,
-        .cpk-launcher-hud[data-cpk-hud-intro="true"]
-          .cpk-launcher-hud__check {
+        .cpk-launcher-hud[data-cpk-hud-intro="true"] .cpk-launcher-hud__row,
+        .cpk-launcher-hud[data-cpk-hud-intro="true"] .cpk-launcher-hud__check {
           animation: none !important;
           opacity: 1;
           transform: none;
@@ -3846,7 +3623,9 @@ export class WebInspectorElement extends LitElement {
       .inspector-sidebar[data-icon-rail="true"]
         .inspector-context-dropdown-icon
         svg,
-      .inspector-sidebar[data-icon-rail="true"] .inspector-agent-placeholder svg {
+      .inspector-sidebar[data-icon-rail="true"]
+        .inspector-agent-placeholder
+        svg {
         width: 18px !important;
         height: 18px !important;
         overflow: visible !important;
@@ -4262,7 +4041,7 @@ export class WebInspectorElement extends LitElement {
 
   protected updated(): void {
     this.syncInspectorPortal();
-    this.syncAnnouncementCopyControls();
+    synchronizeAnnouncementCopyControls(this.activeRoot, this.getClipboard());
     this.syncThreadsExampleOverviewVideo();
     this.maybeTrackInspectorMetadataViews();
     this.maybeTrackNewsSignalViewed();
@@ -4390,9 +4169,7 @@ export class WebInspectorElement extends LitElement {
             // error detail is rendered over the host application: a developer
             // who ships the Inspector to production must not leak internal
             // failure detail to their end users.
-            activeSignal === NEWS_SIGNAL_ID
-              ? `${WHATS_NEW_VIEW_LABEL} — unread`
-              : nothing
+            activeSignal === NEWS_SIGNAL_ID ? "What's new — unread" : nothing
           }
           data-drag-context="button"
           data-cpk-signal=${signal ? signal.tone : nothing}
@@ -4980,12 +4757,12 @@ export class WebInspectorElement extends LitElement {
                       ${
                         marker
                           ? html`
-                              <span
-                                class="inspector-nav-signal-dot"
-                                data-cpk-signal-tone=${marker.tone}
-                                aria-hidden="true"
-                              ></span>
-                            `
+                            <span
+                              class="inspector-nav-signal-dot"
+                              data-cpk-signal-tone=${marker.tone}
+                              aria-hidden="true"
+                            ></span>
+                          `
                           : nothing
                       }
                     </button>
@@ -5015,7 +4792,9 @@ export class WebInspectorElement extends LitElement {
                   data-inspector-sidebar-toggle
                   aria-label=${iconRail ? "Expand sidebar" : "Collapse sidebar"}
                   aria-expanded=${iconRail ? "false" : "true"}
-                  data-inspector-tooltip=${iconRail ? "Expand sidebar" : nothing}
+                  data-inspector-tooltip=${
+                    iconRail ? "Expand sidebar" : nothing
+                  }
                   title=${iconRail ? nothing : "Collapse sidebar"}
                   style=${INTERACTIVE_FOCUS_BASE_STYLE}
                   @pointerenter=${
@@ -5033,7 +4812,9 @@ export class WebInspectorElement extends LitElement {
                   @click=${this.handleSidebarToggle}
                 >
                   <span class="inspector-nav-icon" aria-hidden="true">
-                    ${this.renderIcon(iconRail ? "ChevronRight" : "ChevronLeft")}
+                    ${this.renderIcon(
+                      iconRail ? "ChevronRight" : "ChevronLeft",
+                    )}
                   </span>
                   <span class="inspector-nav-label"
                     >${iconRail ? "Expand" : "Collapse"}</span
@@ -5204,68 +4985,37 @@ export class WebInspectorElement extends LitElement {
       suggestionsOn: this._core?.suggestions === true,
       audioOn: this._core?.audioFileTranscriptionEnabled === true,
       websocketUrl: this._core?.intelligence?.wsUrl,
-      announcementPreviewText: this.announcementPreviewText ?? undefined,
-      announcementMarkdown: this.announcementMarkdown ?? undefined,
-      announcementHtml: this.announcementHtml ?? undefined,
       intelligenceSignupUrl: this.getIntelligenceSignupUrl(),
     });
   }
 
   private renderHomeView() {
     const model = this.getHomeModel();
-    const connected = model.hero.connection === "connected";
-    return html`
-      <div
-        class="inspector-home"
-        data-inspector-home
-        data-inspector-home-state=${connected ? "connected" : "disconnected"}
-      >
-        ${this.renderHomeWhatsNewPreview(model.news)}
-        ${this.renderHomeSystemHealth(model)}
-        ${this.renderHomeIntelligenceHud(model)}
-        ${this.renderHomeFeatures(model)}
-      </div>
-    `;
-  }
-
-  private renderHomeWhatsNewPreview(news: HomeModel["news"]) {
-    const unread = this.newsSignalArmed && this.announcementLoaded;
-    if (news.empty || !unread) {
-      return nothing;
-    }
-
-    return html`
-      <section
-        class="inspector-whats-new-preview"
-        data-inspector-home-band="news"
-        data-unread="true"
-        role="note"
-        aria-label="New CopilotKit update"
-      >
-        <button
-          type="button"
-          class="inspector-whats-new-preview-body"
-          data-inspector-whats-new-preview
-          aria-label="Open What's New"
-          style=${INTERACTIVE_FOCUS_BASE_STYLE}
-          @click=${() => this.handleMenuSelect(WHATS_NEW_MENU_KEY)}
-        >
-          <span class="inspector-whats-new-preview-copy">
-            <span class="inspector-whats-new-preview-title">
-              <span class="inspector-home-story-unread">New</span>
-              <strong>${news.title}</strong>
-            </span>
-            <span>${news.previewText}</span>
-          </span>
-          <span class="inspector-whats-new-preview-action">
-            View update ${this.renderIcon("ArrowRight")}
-          </span>
-        </button>
-      </section>
-    `;
+    const announcementPreview =
+      this.newsSignalArmed && this.announcement
+        ? renderAnnouncementPreview(
+            this.announcement,
+            () => this.handleMenuSelect(WHATS_NEW_MENU_KEY),
+            (name) => this.renderIcon(name),
+          )
+        : undefined;
+    return renderHomeDomainView(
+      model,
+      {
+        openHeroAction: (action) => this.handleHomeHeroCta(action),
+        openLastEvent: (eventId, agentId) =>
+          this.handleHomeLastEventSelect(eventId, agentId),
+      },
+      {
+        announcementPreview,
+        appendRefParam: (href, ref) => this.appendRefParam(href, ref),
+        renderIcon: (name) => this.renderIcon(name),
+      },
+    );
   }
 
   private renderWhatsNewView() {
+<<<<<<< HEAD
     const state = this.getWhatsNewState();
     const news = this.getHomeModel().news;
     const updatedAt = this.announcementTimestamp
@@ -5691,6 +5441,13 @@ export class WebInspectorElement extends LitElement {
         </dl>
       </section>
     `;
+=======
+    return renderAnnouncementsView(
+      this.announcement,
+      this.announcementLoaded,
+      this.handleAnnouncementContentClick,
+    );
+>>>>>>> 11b30aaa8e (refactor(web-inspector): isolate Home and announcement domains)
   }
 
   private renderEventErrorBanner(key: InspectorEventErrorSource) {
@@ -5720,7 +5477,9 @@ export class WebInspectorElement extends LitElement {
                 ? html`<span class="block">Tool: ${error.toolName}</span>`
                 : nothing
             }
-            <span class="block break-words leading-relaxed">${error.message}</span>
+            <span class="block break-words leading-relaxed"
+              >${error.message}</span
+            >
             ${
               guide.advice
                 ? html`<span class="block leading-relaxed">${guide.advice}</span>`
@@ -5728,7 +5487,9 @@ export class WebInspectorElement extends LitElement {
             }
             ${
               guide.highlight && this.hasEventErrorHighlight(key)
-                ? html`<span class="block leading-relaxed">${guide.highlight}</span>`
+                ? html`<span class="block leading-relaxed"
+                  >${guide.highlight}</span
+                >`
                 : nothing
             }
           </span>
@@ -5767,98 +5528,8 @@ export class WebInspectorElement extends LitElement {
     });
   }
 
-  private renderHomeFeatures(model: HomeModel) {
-    const enabledServices = model.services.filter((service) => service.enabled);
-    const disabledServices = model.services.filter(
-      (service) => !service.enabled,
-    );
-    const renderService = (service: HomeModel["services"][number]) => html`
-      <a
-        class="inspector-home-feature"
-        data-inspector-service=${service.id}
-        data-state=${service.enabled ? "on" : "off"}
-        href=${this.appendRefParam(service.docsUrl, "cpk-inspector-home")}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Learn more about ${service.label}, currently ${
-          service.enabled ? "on" : "off"
-        }"
-      >
-        <span>${service.label}</span>
-        <small>${service.enabled ? "On" : "Off"}</small>
-        <span class="inspector-home-feature-arrow" aria-hidden="true">
-          ${this.renderIcon("ArrowUpRight")}
-        </span>
-      </a>
-    `;
-    return html`
-      <section
-        class="inspector-home-section inspector-home-features"
-        data-inspector-home-card="services"
-      >
-        <header class="inspector-home-section-header">
-          <h2 class="inspector-home-section-title">Features</h2>
-          <span>
-            ${enabledServices.length} active, ${disabledServices.length} off
-          </span>
-        </header>
-        ${
-          model.services.length === 0
-            ? html`
-                <p class="inspector-home-features-empty">
-                  Feature availability is unavailable for this runtime.
-                </p>
-              `
-            : html`
-              <div class="inspector-home-feature-groups">
-                <section
-                  class="inspector-home-feature-group"
-                  data-feature-state-group="active"
-                  aria-label="Active features"
-                >
-                  <header class="inspector-home-feature-group-header">
-                    <strong>Active</strong>
-                    <span>${enabledServices.length}</span>
-                  </header>
-                  <div class="inspector-home-feature-list">
-                    ${
-                      enabledServices.length > 0
-                        ? enabledServices.map(renderService)
-                        : html`
-                            <p class="inspector-home-feature-group-empty">None enabled</p>
-                          `
-                    }
-                  </div>
-                </section>
-                <section
-                  class="inspector-home-feature-group"
-                  data-feature-state-group="available"
-                  aria-label="Available features"
-                >
-                  <header class="inspector-home-feature-group-header">
-                    <strong>Available</strong>
-                    <span>${disabledServices.length}</span>
-                  </header>
-                  <div class="inspector-home-feature-list">
-                    ${
-                      disabledServices.length > 0
-                        ? disabledServices.map(renderService)
-                        : html`
-                            <p class="inspector-home-feature-group-empty">Everything is active</p>
-                          `
-                    }
-                  </div>
-                </section>
-              </div>
-            `
-        }
-      </section>
-    `;
-  }
-
   private handleHomeHeroCta(action: HomeHeroAction): void {
-    if (this.core?.telemetryDisabled) return;
-    trackHomeCtaClicked({ action_kind: action.kind });
+    trackHomeAction(action, this.core?.telemetryDisabled ?? false);
   }
 
   /**
@@ -6375,7 +6046,7 @@ export class WebInspectorElement extends LitElement {
     }
     if (!this.homeViewedThisOpen && !this.core?.telemetryDisabled) {
       this.homeViewedThisOpen = true;
-      trackHomeViewed();
+      trackHomeView(false);
     }
   }
 
@@ -8617,28 +8288,6 @@ export class WebInspectorElement extends LitElement {
     }
   };
 
-  // Fires `whats_new_clicked` at most once per `${bannerId}:${cta}` per mount
-  // so copy-button retries and accidental multi-clicks don't inflate funnel
-  // counts. `body` is the only cta left now that dismissal is gone.
-  private trackWhatsNewClickedOnce(opts: { cta: "body" }): void {
-    if (
-      this.runtimeStatus !== CopilotKitCoreRuntimeConnectionStatus.Connected ||
-      this.core?.telemetryDisabled
-    ) {
-      return;
-    }
-    const id = this.announcementTimestamp;
-    if (!id) return;
-    const key = `${id}:${opts.cta}`;
-    if (this.clickedBannerIds.has(key)) return;
-    this.clickedBannerIds.add(key);
-    trackWhatsNewClicked({
-      banner_id: id,
-      cta: opts.cta,
-      cta_label: this.announcementCtaLabel ?? undefined,
-    });
-  }
-
   private handleTalkToEngineerClick = (): void => {
     if (this.core?.telemetryDisabled) return;
     trackTalkToEngineerClicked(
@@ -9984,8 +9633,8 @@ export class WebInspectorElement extends LitElement {
   private clearNewsSignal(): void {
     if (!this.newsSignalArmed) return;
     this.newsSignalArmed = false;
-    if (this.announcementTimestamp) {
-      saveAnnouncementReadTimestamp(this.announcementTimestamp);
+    if (this.announcement) {
+      saveAnnouncementReadTimestamp(this.announcement.timestamp);
     }
     this.retireSignal(NEWS_SIGNAL_ID);
     this.requestUpdate();
@@ -10051,8 +9700,8 @@ export class WebInspectorElement extends LitElement {
     // deferred beat unfired.
     if (isWiringErrorKey(key)) {
       this.errorBeatSpent = true;
-    } else if (this.announcementTimestamp && key === NEWS_SIGNAL_ID) {
-      saveAnnouncementPulsedTimestamp(this.announcementTimestamp);
+    } else if (this.announcement && key === NEWS_SIGNAL_ID) {
+      saveAnnouncementPulsedTimestamp(this.announcement.timestamp);
     }
     this.beginGestureTail(key);
     this.requestUpdate();
@@ -10466,114 +10115,38 @@ export class WebInspectorElement extends LitElement {
     ) {
       return;
     }
-    const id = this.announcementTimestamp;
-    if (!id || this.viewedNewsSignalIds.has(id)) return;
-    this.viewedNewsSignalIds.add(id);
-    this.pendingNewsSignalViewed = {
-      banner_id: id,
-      surface: "launcher",
-      presentation:
-        typeof window !== "undefined" &&
+    if (!this.announcement) return;
+    this.announcementTelemetry.recordLauncherPulse(
+      this.announcement,
+      typeof window !== "undefined" &&
         window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-          ? "reduced_motion"
-          : "animated",
-      cta_label: this.announcementCtaLabel ?? undefined,
-    };
-    this.flushPendingWhatsNewTelemetry();
+        ? "reduced_motion"
+        : "animated",
+    );
+    this.flushAnnouncementTelemetry();
   }
 
-  // ── What's new ─────────────────────────────────────────────────────────
-  //
-  // Built as a self-contained unit — its own render method, its own state,
-  // and no dependency on the shape of today's two-level navigation — so the
-  // planned sidebar restructuring can relocate it rather than rewrite it.
-
-  /** Which of the three What's new states the feed currently supports. */
-  private getWhatsNewState(): "loading" | "empty" | "content" {
-    if (this.announcementHtml) return "content";
-    return this.announcementLoaded ? "empty" : "loading";
+  private isAnnouncementVisible(): boolean {
+    return (
+      this.isOpen &&
+      !this.settingsOpen &&
+      this.selectedMenu === WHATS_NEW_MENU_KEY &&
+      Boolean(this.announcement?.documentHtml)
+    );
   }
 
-  /**
-   * Which announcement surface is on screen right now, or null when the
-   * announcement isn't visible. What's new is the only surface: an impression
-   * requires the panel open, that view selected, and content actually
-   * rendered — a loading state is not an impression.
-   */
-  private getVisibleBannerSurface(): WhatsNewSurface | null {
-    if (!this.isOpen || this.settingsOpen) return null;
-    if (this.selectedMenu !== WHATS_NEW_MENU_KEY) return null;
-    return this.announcementHtml ? "whats_new" : null;
-  }
-
-  /**
-   * The single condition that retires the news signal: What's new has
-   * rendered *with content*.
-   *
-   * Deliberately not on panel open — the common reason to open the Inspector
-   * is AG-UI events, and clearing there would burn a whole announcement
-   * silently and turn "viewed" into "opened the Inspector at some point".
-   * Deliberately not behind an acknowledge button, which is a dismiss button
-   * under another name. And a loading state does not count, because the feed
-   * is asynchronous and a reader who arrived early has seen nothing.
-   *
-   * The launcher dot and the navigation marker both read the same signal, so
-   * the two can never disagree about whether something has been read.
-   */
   private maybeCompleteWhatsNewView(): void {
-    if (!this.getVisibleBannerSurface()) return;
-    this.maybeTrackWhatsNewViewed();
+    if (!this.isAnnouncementVisible() || !this.announcement) return;
+    this.announcementTelemetry.recordView(this.announcement);
+    this.flushAnnouncementTelemetry();
     this.clearNewsSignal();
   }
 
-  /**
-   * Records a `whats_new_viewed` impression for whichever surface is
-   * currently visible, once per announcement per surface.
-   */
-  private maybeTrackWhatsNewViewed(): void {
-    const id = this.announcementTimestamp;
-    if (!id) return;
-    const surface = this.getVisibleBannerSurface();
-    if (!surface) return;
-    const key = `${id}:${surface}`;
-    if (this.viewedBannerSurfaces.has(key)) return;
-    if (this.pendingBannerViewed.length >= MAX_PENDING_BANNER_VIEWED) return;
-    this.viewedBannerSurfaces.add(key);
-    this.pendingBannerViewed.push({
-      banner_id: id,
-      surface,
-      cta_label: this.announcementCtaLabel ?? undefined,
-    });
-    this.flushPendingWhatsNewTelemetry();
-  }
-
-  // Releases held notification telemetry once /info has answered, or discards
-  // it when the runtime reports telemetry disabled.
-  private flushPendingWhatsNewTelemetry(): void {
-    if (
-      this.pendingBannerViewed.length === 0 &&
-      !this.pendingNewsSignalViewed
-    ) {
-      return;
-    }
-    if (this.core?.telemetryDisabled) {
-      this.pendingBannerViewed = [];
-      this.pendingNewsSignalViewed = null;
-      return;
-    }
-    if (
-      this.runtimeStatus !== CopilotKitCoreRuntimeConnectionStatus.Connected
-    ) {
-      return;
-    }
-    const queued = this.pendingBannerViewed;
-    this.pendingBannerViewed = [];
-    for (const props of queued) trackWhatsNewViewed(props);
-    if (this.pendingNewsSignalViewed) {
-      const props = this.pendingNewsSignalViewed;
-      this.pendingNewsSignalViewed = null;
-      trackWhatsNewSignalViewed(props);
-    }
+  private flushAnnouncementTelemetry(): void {
+    this.announcementTelemetry.flush(
+      this.runtimeStatus === CopilotKitCoreRuntimeConnectionStatus.Connected,
+      this.core?.telemetryDisabled ?? false,
+    );
   }
 
   private ensureAnnouncementLoading(): void {
@@ -10588,131 +10161,27 @@ export class WebInspectorElement extends LitElement {
   }
 
   private async fetchAnnouncement(): Promise<void> {
-    try {
-      const response = await fetch(ANNOUNCEMENT_URL, { cache: "no-cache" });
-      if (!response.ok) {
-        throw new Error(`Failed to load announcement (${response.status})`);
+    const projection = await loadAnnouncementFeed();
+    this.announcementLoaded = true;
+    if (projection.status === "ready") {
+      this.announcement = projection;
+      if (projection.shouldArm) {
+        this.armNewsSignal({ pulse: projection.shouldPulse });
       }
-
-      const data = (await response.json()) as {
-        timestamp?: unknown;
-        previewText?: unknown;
-        announcement?: unknown;
-        cta_label?: unknown;
-      };
-
-      const timestamp =
-        typeof data?.timestamp === "string" ? data.timestamp : null;
-      const previewText =
-        typeof data?.previewText === "string" ? data.previewText : null;
-      const markdown =
-        typeof data?.announcement === "string" ? data.announcement : null;
-      const ctaLabel =
-        typeof data?.cta_label === "string" ? data.cta_label : null;
-
-      if (!timestamp || !markdown) {
-        throw new Error("Malformed announcement payload");
-      }
-
-      this.announcementTimestamp = timestamp;
-      this.announcementPreviewText = previewText ?? "";
-      this.announcementMarkdown = markdown;
-      this.announcementCtaLabel = ctaLabel;
-      this.announcementHtml = await this.convertMarkdownToHtml(markdown);
-      this.announcementLoaded = true;
-
-      // The signal arms on a timestamp plus a body that actually renders —
-      // anything else would produce a dot that What's new can never clear,
-      // because clearing requires content. `previewText` does NOT gate it:
-      // that was defensible while the text was the bubble's headline, but it
-      // is now just the heading, and gating on it would mean an announcement
-      // without preview text produced no dot at all.
-      if (
-        this.announcementHtml &&
-        loadAnnouncementReadTimestamp() !== timestamp
-      ) {
-        this.armNewsSignal({
-          pulse: loadAnnouncementPulsedTimestamp() !== timestamp,
-        });
-      }
-
-      this.requestUpdate();
-    } catch (error) {
-      // Swallowing here would hide non-network failures (malformed JSON, the
-      // explicit "Malformed announcement payload" throw above, exceptions
-      // from `convertMarkdownToHtml`). At minimum, surface in the console so
-      // a stale announcement is debuggable.
-      console.warn("[CopilotKit Inspector] Failed to load announcement", error);
-      this.announcementLoaded = true;
-      this.requestUpdate();
     }
-  }
-
-  private async convertMarkdownToHtml(
-    markdown: string,
-  ): Promise<string | null> {
-    const renderer = new marked.Renderer();
-    renderer.link = (href, title, text) => {
-      const safeHref = this.escapeHtmlAttr(
-        this.isSafeAnnouncementHref(href ?? "")
-          ? this.appendRefParam(href ?? "")
-          : "#",
-      );
-      const titleAttr = title ? ` title="${this.escapeHtmlAttr(title)}"` : "";
-      return `<a href="${safeHref}" target="_blank" rel="noopener"${titleAttr}>${text}</a>`;
-    };
-    renderer.html = (markup) => escapeHtml(markup);
-    renderer.code = (code, lang) => {
-      const safeLang = (lang ?? "").replace(/[^a-z0-9-]/gi, "");
-      const langClass = safeLang ? ` class="language-${safeLang}"` : "";
-      const escaped = escapeHtml(code);
-      const value = this.escapeHtmlAttr(code);
-      return `<div class="announcement-code"><pre><code${langClass}>${escaped}</code></pre><div class="announcement-code__copy-shield"><cpk-inspector-copy-button class="announcement-code__copy" value="${value}" accessible-label="Copy code" copied-label="Copied" reset-delay-ms="1500"></cpk-inspector-copy-button></div></div>`;
-    };
-    return marked.parse(markdown, { renderer, async: false });
-  }
-
-  private isSafeAnnouncementHref(href: string): boolean {
-    try {
-      const url = new URL(
-        href,
-        typeof window !== "undefined"
-          ? window.location.href
-          : "https://copilotkit.ai",
-      );
-      return (
-        url.protocol === "http:" ||
-        url.protocol === "https:" ||
-        url.protocol === "mailto:"
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  private syncAnnouncementCopyControls(): void {
-    const clipboard = this.getClipboard();
-    for (const control of this.activeRoot.querySelectorAll<InspectorCopyButtonElement>(
-      ".announcement-code__copy",
-    )) {
-      control.clipboard = clipboard;
-    }
+    this.requestUpdate();
   }
 
   private handleAnnouncementContentClick = (event: Event): void => {
-    const target = event.target as {
-      closest?: (selector: string) => Element | null;
-    } | null;
-    const link =
-      typeof target?.closest === "function" ? target.closest("a") : null;
-    if (!link) return;
-
+    const link = announcementLinkFromClick(event);
+    if (!link || !this.announcement) return;
     const href = link.getAttribute("href");
     if (href) link.setAttribute("href", this.appendRefParam(href));
-
-    // whats_new_clicked fires once per banner per mount. Dedup prevents
-    // accidental multi-clicks from inflating the link-follow funnel.
-    this.trackWhatsNewClickedOnce({ cta: "body" });
+    this.announcementTelemetry.recordBodyClick(
+      this.announcement,
+      this.runtimeStatus === CopilotKitCoreRuntimeConnectionStatus.Connected,
+      this.core?.telemetryDisabled ?? false,
+    );
   };
 
   private appendRefParam(href: string, ref = "cpk-inspector"): string {
@@ -10756,10 +10225,6 @@ export class WebInspectorElement extends LitElement {
   private isCopilotKitDestination(url: URL): boolean {
     const hostname = url.hostname.toLowerCase();
     return hostname === "copilotkit.ai" || hostname.endsWith(".copilotkit.ai");
-  }
-
-  private escapeHtmlAttr(value: string): string {
-    return escapeHtml(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 }
 
