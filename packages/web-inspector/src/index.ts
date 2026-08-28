@@ -23,6 +23,7 @@ export {
 export type { InspectorOpenOptions } from "./shell/web-inspector-element.js";
 export { WebInspectorElement } from "./shell/web-inspector-element.js";
 export {
+  configureWebInspectorElement,
   defineWebInspector,
   THREAD_INSPECTOR_TAG,
   WEB_INSPECTOR_TAG,

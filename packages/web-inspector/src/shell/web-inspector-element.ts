@@ -3,6 +3,7 @@ import type { TemplateResult } from "lit";
 import { styleMap } from "lit/directives/style-map.js";
 import tailwindStyles from "../styles/generated.css";
 import inspectorLogoUrl from "../assets/inspector-logo.svg";
+import inspectorLogoKiteUrl from "../assets/inspector-logo-kite.svg";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { icons } from "lucide";
 import type { CopilotKitCore, CopilotKitCoreErrorCode } from "@copilotkit/core";
@@ -68,9 +69,21 @@ import {
   runtimeConnectionNeedsAttention,
 } from "../domains/home/model.js";
 import type { HomeHeroAction, HomeModel } from "../domains/home/model.js";
+import {
+  copyIntelligenceOnboardingPrompt,
+  createHomeIntelligenceState,
+  disposeHomeIntelligenceState,
+  pinIntelligenceStoryBeat,
+  syncIntelligenceStory,
+} from "../domains/home/intelligence-state.js";
 import { renderHomeView as renderHomeDomainView } from "../domains/home/view.js";
 import { homeViewStyles } from "../domains/home/view.styles.js";
-import { trackHomeAction, trackHomeView } from "../domains/home/telemetry.js";
+import {
+  trackHomeAction,
+  trackHomePromptCopy,
+  trackHomeStorySelection,
+  trackHomeView,
+} from "../domains/home/telemetry.js";
 import {
   clearLegacyAnnouncementReadState,
   loadAnnouncementFeed,
@@ -115,6 +128,7 @@ import {
   trackThreadsLockedViewed,
   trackThreadsTabClicked,
   trackThreadsTalkToEngineerClicked,
+  trackThreadsTryFromHereClicked,
 } from "../shared/telemetry/privacy.js";
 import type { DisplayValue } from "../shared/display/types.js";
 import type {
@@ -143,12 +157,12 @@ import {
   updatePlaygroundInput,
 } from "../domains/playground/composer.js";
 import { isPlaygroundSelectElement } from "../domains/playground/element-guards.js";
-import { mapPlaygroundMessagesToAgent } from "../domains/playground/message-adapter.js";
 import {
   clearPlaygroundSession,
   createPlaygroundSession,
   createPlaygroundSubscriber,
   loadPlaygroundThread,
+  loadPlaygroundThreadSnapshot,
   resolvePlaygroundAgentId,
   runPlaygroundAgent,
   syncPlaygroundMessages,
@@ -582,6 +596,7 @@ export class WebInspectorElement extends LitElement {
   private systemColorSchemeMediaQuery: MediaQueryList | null = null;
   private briefingRestoreMenu: MenuKey | null = null;
   private homeViewedThisOpen = false;
+  private readonly homeIntelligence = createHomeIntelligenceState();
   private hasResolvedCore = false;
   private settingsOpen = false;
   private readonly lastSelectedMenuByGroup: Record<
@@ -600,7 +615,7 @@ export class WebInspectorElement extends LitElement {
   private iconRailContextCloseTimer: ReturnType<typeof setTimeout> | null =
     null;
   private pendingSelectedContext: string | null = null;
-  private autoAttachCore = true;
+  public autoAttachCore = true;
   private attemptedAutoAttach = false;
   private get _capabilitiesVersion() {
     return this.live.capabilitiesVersion;
@@ -1803,6 +1818,7 @@ export class WebInspectorElement extends LitElement {
     this.windowShell.clearTransitionTimers();
     this.clearIconRailContextCloseTimer();
     this.unsubscribeFromInspectorThreadBridge();
+    disposeHomeIntelligenceState(this.homeIntelligence);
     this.threads.setupPromptCopyGeneration += 1;
     if (this.threads.setupPromptCopyResetTimeoutId !== null) {
       window.clearTimeout(this.threads.setupPromptCopyResetTimeoutId);
@@ -1889,6 +1905,7 @@ export class WebInspectorElement extends LitElement {
     this.launcher.maybeCompleteEventErrorView();
     this.flushErrorLandingScroll();
     this.maybeTrackHomeViewed();
+    this.syncHomeIntelligenceStory();
 
     if (!this.isOpen) {
       this.lastScrolledAgentNavigationLayout = null;
@@ -2328,14 +2345,20 @@ export class WebInspectorElement extends LitElement {
     return renderHomeDomainView(
       model,
       {
+        copyPrompt: (event) => {
+          void this.handleIntelligencePromptCopy(event);
+        },
         openHeroAction: (action) => this.handleHomeHeroCta(action),
         openLastEvent: (eventId, agentId) =>
           this.handleHomeLastEventSelect(eventId, agentId),
+        pinStoryBeat: (index) => this.handleIntelligenceStoryBeatSelect(index),
       },
       {
         announcementPreview,
         appendRefParam: (href, ref) => this.appendRefParam(href, ref),
+        intelligenceLogoUrl: inspectorLogoKiteUrl,
         renderIcon: (name) => this.renderIcon(name),
+        state: this.homeIntelligence,
       },
     );
   }
@@ -2428,6 +2451,52 @@ export class WebInspectorElement extends LitElement {
 
   private handleHomeHeroCta(action: HomeHeroAction): void {
     trackHomeAction(action, this.core?.telemetryDisabled ?? false);
+  }
+
+  private async handleIntelligencePromptCopy(event: Event): Promise<void> {
+    await copyIntelligenceOnboardingPrompt(this.homeIntelligence, {
+      clipboard: this.getClipboard(event),
+      isConnected: () => this.isConnected,
+      requestUpdate: () => this.requestUpdate(),
+      trackOutcome: (runId, outcome) =>
+        trackHomePromptCopy(
+          runId,
+          outcome,
+          this.core?.telemetryDisabled ?? false,
+        ),
+    });
+  }
+
+  private handleIntelligenceStoryBeatSelect(index: number): void {
+    pinIntelligenceStoryBeat(this.homeIntelligence, index, {
+      requestUpdate: () => this.requestUpdate(),
+      trackSelection: (beat) =>
+        trackHomeStorySelection(
+          beat,
+          index,
+          this.core?.telemetryDisabled ?? false,
+        ),
+    });
+  }
+
+  private syncHomeIntelligenceStory(): void {
+    const visible =
+      this.isOpen &&
+      !this.settingsOpen &&
+      this.selectedMenu === "home" &&
+      !this._core?.intelligence &&
+      typeof document !== "undefined" &&
+      document.visibilityState !== "hidden";
+    const reducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+
+    syncIntelligenceStory(this.homeIntelligence, {
+      visible,
+      reducedMotion,
+      isConnected: () => this.isConnected,
+      requestUpdate: () => this.requestUpdate(),
+    });
   }
 
   private maybeTrackHomeViewed(): void {
@@ -3154,12 +3223,70 @@ export class WebInspectorElement extends LitElement {
     if (!loaded) return;
     this.startPlaygroundSession(
       false,
-      mapPlaygroundMessagesToAgent(loaded.messages),
+      loaded.agentMessages,
       loaded.threadState,
       loaded.agentId,
     );
     this.playground.sourceThreadId = loaded.threadId;
     this.requestUpdate();
+  };
+
+  private handleTryFromHere = async (
+    threadId: string | null,
+  ): Promise<void> => {
+    if (!threadId || this.threads.tryFromHereBusy) return;
+    const thread =
+      this.threads.threads.find((candidate) => candidate.id === threadId) ??
+      null;
+    if (!thread) return;
+
+    this.threads.tryFromHereBusy = true;
+    this.threads.tryFromHereError = null;
+    this.requestUpdate();
+    const isCurrent = () =>
+      this.threads.selectedThreadId === threadId &&
+      this.selectedMenu === "threads";
+
+    try {
+      const core = this._core;
+      if (!core?.runtimeUrl) throw new Error("Failed to load thread.");
+      const loaded = await loadPlaygroundThreadSnapshot({
+        thread,
+        runtimeUrl: core.runtimeUrl,
+        headers: core.headers,
+        fetch,
+      });
+      if (isCurrent()) {
+        this.startPlaygroundSession(
+          false,
+          loaded.agentMessages,
+          loaded.threadState,
+          loaded.agentId,
+        );
+        this.playground.sourceThreadId = loaded.threadId;
+        this.handleMenuSelect("playground");
+      }
+      if (!this.core?.telemetryDisabled) {
+        trackThreadsTryFromHereClicked({
+          ...this.getThreadsTelemetryProps(),
+          outcome: "success",
+        });
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        this.threads.tryFromHereError =
+          error instanceof Error ? error.message : "Failed to load thread.";
+      }
+      if (!this.core?.telemetryDisabled) {
+        trackThreadsTryFromHereClicked({
+          ...this.getThreadsTelemetryProps(),
+          outcome: "failure",
+        });
+      }
+    } finally {
+      this.threads.tryFromHereBusy = false;
+      this.requestUpdate();
+    }
   };
 
   private runPlaygroundAgent = async (): Promise<void> => {
@@ -4046,6 +4173,12 @@ export class WebInspectorElement extends LitElement {
           selectedThread,
           selectedThreadIsLocalExample,
         ),
+        tryFromHereAvailable:
+          !selectedThreadIsLocalExample &&
+          this.areThreadEndpointsAvailable() &&
+          this._core?.threadEndpoints?.inspect !== false,
+        tryFromHereBusy: this.threads.tryFromHereBusy,
+        tryFromHereError: this.threads.tryFromHereError,
         provider:
           selectedThread && selectedThreadIsLocalExample
             ? this.getExampleThreadProvider(selectedThread.id)
@@ -4073,6 +4206,7 @@ export class WebInspectorElement extends LitElement {
         resizeEnd: this.handleThreadDividerPointerUp,
         viewInApp: this.handleViewInApp,
         stopViewing: this.handleStopViewing,
+        tryFromHere: this.handleTryFromHere,
       },
     );
   }

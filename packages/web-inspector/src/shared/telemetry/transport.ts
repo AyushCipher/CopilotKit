@@ -27,9 +27,12 @@ export const TELEMETRY_EVENTS = {
   threadsExampleTourDismissed: "oss.inspector.threads_example_tour_dismissed",
   threadsExampleTourCompleted: "oss.inspector.threads_example_tour_completed",
   threadsExampleTourReopened: "oss.inspector.threads_example_tour_reopened",
+  threadsTryFromHereClicked: "oss.inspector.threads_try_from_here_clicked",
   memoriesTabClicked: "oss.inspector.memories_tab_clicked",
   homeViewed: "oss.inspector.home_viewed",
   homeCtaClicked: "oss.inspector.home_cta_clicked",
+  homePromptCopied: "oss.inspector.home_prompt_copied",
+  homeStoryBeatSelected: "oss.inspector.home_story_beat_selected",
   metadataModuleViewed: "oss.inspector.metadata_module_viewed",
   metadataActionClicked: "oss.inspector.metadata_action_clicked",
 } as const;

@@ -263,6 +263,7 @@ export type InspectorThreadTelemetryProps = Readonly<{
   tour_step?: ExampleTourStep;
   tour_tab?: ExampleTourTab;
   dismiss_method?: "skip" | "done";
+  outcome?: "success" | "failure";
 }>;
 
 /** Rebuild the common Thread payload from its closed coarse allowlist. */
@@ -392,6 +393,15 @@ export function trackThreadsEnabledViewed(
   props: InspectorThreadTelemetryProps,
 ): void {
   track(TELEMETRY_EVENTS.threadsEnabledViewed, threadCommonProperties(props));
+}
+
+export function trackThreadsTryFromHereClicked(
+  props: InspectorThreadTelemetryProps,
+): void {
+  track(TELEMETRY_EVENTS.threadsTryFromHereClicked, {
+    ...threadCommonProperties(props),
+    ...(props.outcome === undefined ? {} : { outcome: props.outcome }),
+  });
 }
 
 export function trackThreadsExampleViewed(

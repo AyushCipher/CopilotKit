@@ -1,3 +1,5 @@
+import type { CopilotKitCore } from "@copilotkit/core";
+
 import { CpkMemoryList } from "./domains/learning/memory-list.js";
 import {
   CpkThreadInspector,
@@ -16,6 +18,21 @@ import {
 
 export const WEB_INSPECTOR_TAG = "cpk-web-inspector" as const;
 export const THREAD_INSPECTOR_TAG = "cpk-thread-inspector" as const;
+
+/**
+ * Bind a host-owned core before an Inspector connects to the DOM.
+ *
+ * @param inspector - The Inspector element the host will mount.
+ * @param core - The host's CopilotKit core, or null to clear it.
+ */
+export function configureWebInspectorElement(
+  inspector: WebInspectorElement,
+  core: CopilotKitCore | null,
+) {
+  inspector.autoAttachCore = false;
+  inspector.core = core;
+  return inspector;
+}
 
 function defineElementOnce(
   registry: CustomElementRegistry,
